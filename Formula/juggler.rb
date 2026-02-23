@@ -1,25 +1,25 @@
 class Juggler < Formula
   desc "TODO juggler"
   homepage "https://github.com/scode/juggler"
-  version "0.2.2"
+  version "0.2.4"
   if OS.mac?
     if Hardware::CPU.arm?
-      url "https://github.com/scode/juggler/releases/download/v0.2.2/juggler-aarch64-apple-darwin.tar.xz"
-      sha256 "68ee7d5dab386b248d4ca92b8d1548470afed89476c3b790fe1e89f00cee12d3"
+      url "https://github.com/scode/juggler/releases/download/v0.2.4/juggler-aarch64-apple-darwin.tar.xz"
+      sha256 "42bc20767b23207a7994a9e615d4ddf7a239cb7958b373ed4c4868e9fc4c4692"
     end
     if Hardware::CPU.intel?
-      url "https://github.com/scode/juggler/releases/download/v0.2.2/juggler-x86_64-apple-darwin.tar.xz"
-      sha256 "180dface85942edb0d0d386c302fa581477a0d03b29144f9cc9591c799396c62"
+      url "https://github.com/scode/juggler/releases/download/v0.2.4/juggler-x86_64-apple-darwin.tar.xz"
+      sha256 "810df3649a3d0d2479e9e0661dadb646fb60aafed53e67eb9e526220abf1f0d4"
     end
   end
   if OS.linux?
     if Hardware::CPU.arm?
-      url "https://github.com/scode/juggler/releases/download/v0.2.2/juggler-aarch64-unknown-linux-gnu.tar.xz"
-      sha256 "ac3565a392c05f3d5e38073aaedb0fdd826fd4d7d0a525a2b70db4f620566b7d"
+      url "https://github.com/scode/juggler/releases/download/v0.2.4/juggler-aarch64-unknown-linux-gnu.tar.xz"
+      sha256 "d8be9f9d9574ecd4d4a40eca89986f18f4e7d1fbb7b2a096c28cd8d481f5adb5"
     end
     if Hardware::CPU.intel?
-      url "https://github.com/scode/juggler/releases/download/v0.2.2/juggler-x86_64-unknown-linux-gnu.tar.xz"
-      sha256 "9c7a07a286d477e98e4a69fd474468f8e4b8f03362c41a4aaab914a8baaaf9c3"
+      url "https://github.com/scode/juggler/releases/download/v0.2.4/juggler-x86_64-unknown-linux-gnu.tar.xz"
+      sha256 "649a93e4dcc18bc602cbdc9517ec9766bd7012a3a69efb03dcfeaff2d84987d2"
     end
   end
   license "MIT"
