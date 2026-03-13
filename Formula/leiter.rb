@@ -1,25 +1,25 @@
 class Leiter < Formula
   desc "A self-training system for Claude Code"
   homepage "https://github.com/scode/leiter"
-  version "0.5.0"
+  version "0.6.0"
   if OS.mac?
     if Hardware::CPU.arm?
-      url "https://github.com/scode/leiter/releases/download/v0.5.0/leiter-aarch64-apple-darwin.tar.xz"
-      sha256 "976c60dd5b2aac8833bc81ff97ebf1196504931941ee574788e4d9e78e39b03d"
+      url "https://github.com/scode/leiter/releases/download/v0.6.0/leiter-aarch64-apple-darwin.tar.xz"
+      sha256 "293b5b38178d4f64db3afdf31d27443b40dd61690572fd888665d27b6030f8aa"
     end
     if Hardware::CPU.intel?
-      url "https://github.com/scode/leiter/releases/download/v0.5.0/leiter-x86_64-apple-darwin.tar.xz"
-      sha256 "0e192181aa41c0e5ce5c4e6701a8ebc3336b501a6c5bca304316c2451ccf66e0"
+      url "https://github.com/scode/leiter/releases/download/v0.6.0/leiter-x86_64-apple-darwin.tar.xz"
+      sha256 "c8819d8f811a5aabfb90431a10a28dbac0561fb64ae5d740185b6b68109cd01b"
     end
   end
   if OS.linux?
     if Hardware::CPU.arm?
-      url "https://github.com/scode/leiter/releases/download/v0.5.0/leiter-aarch64-unknown-linux-gnu.tar.xz"
-      sha256 "4f288537d425b9b95aa98a0dc13261b577071701f5487083ac4a38f995877ecf"
+      url "https://github.com/scode/leiter/releases/download/v0.6.0/leiter-aarch64-unknown-linux-gnu.tar.xz"
+      sha256 "ebadfffac4fdb97c9e4eb8de49c7813f526d40626836929b4eb29d8b0bfef972"
     end
     if Hardware::CPU.intel?
-      url "https://github.com/scode/leiter/releases/download/v0.5.0/leiter-x86_64-unknown-linux-gnu.tar.xz"
-      sha256 "ad8b3e98981f86e20d8686a185d863f6bc9661a7620852f80f56f295137abede"
+      url "https://github.com/scode/leiter/releases/download/v0.6.0/leiter-x86_64-unknown-linux-gnu.tar.xz"
+      sha256 "51abc58e2f449918e30192f4958bb99b603381b0d295c1bfd6760e96756e2996"
     end
   end
 
