@@ -1,25 +1,25 @@
 class Treeward < Formula
   desc "A command line tool for checksumming and verifying trees of files"
   homepage "https://github.com/scode/treeward"
-  version "0.3.0"
+  version "0.3.1"
   if OS.mac?
     if Hardware::CPU.arm?
-      url "https://github.com/scode/treeward/releases/download/v0.3.0/treeward-aarch64-apple-darwin.tar.xz"
-      sha256 "c3f3b27abdc9cae83225b9cfc58c4e9b6ae6a5b7c47268d79550534eb98608bb"
+      url "https://github.com/scode/treeward/releases/download/v0.3.1/treeward-aarch64-apple-darwin.tar.xz"
+      sha256 "b0666f5fc258b2842b230691fff1fd5134e5780976d608aa7b9478aecb2a0515"
     end
     if Hardware::CPU.intel?
-      url "https://github.com/scode/treeward/releases/download/v0.3.0/treeward-x86_64-apple-darwin.tar.xz"
-      sha256 "eb1acaec5d18fe5c8423a6d62ac1102af997ed7d2b388721629e62b56c7c19b3"
+      url "https://github.com/scode/treeward/releases/download/v0.3.1/treeward-x86_64-apple-darwin.tar.xz"
+      sha256 "47695b5712572d3704176a3fdd6993a0df66c9961159a522b2a43d0e726c9dc0"
     end
   end
   if OS.linux?
     if Hardware::CPU.arm?
-      url "https://github.com/scode/treeward/releases/download/v0.3.0/treeward-aarch64-unknown-linux-gnu.tar.xz"
-      sha256 "5e180b7b3651201cd7eede19f39fcc94ad5550fca21a960196bba2b6be688ff5"
+      url "https://github.com/scode/treeward/releases/download/v0.3.1/treeward-aarch64-unknown-linux-gnu.tar.xz"
+      sha256 "cf92bb5c91277a3bbe69c002c2948558eb46c45334b2e9a8aff4053bbac00356"
     end
     if Hardware::CPU.intel?
-      url "https://github.com/scode/treeward/releases/download/v0.3.0/treeward-x86_64-unknown-linux-gnu.tar.xz"
-      sha256 "a0e84325331a986c60ac38e72326019b7f7ca5ad46911dcf6e3f888c714d3390"
+      url "https://github.com/scode/treeward/releases/download/v0.3.1/treeward-x86_64-unknown-linux-gnu.tar.xz"
+      sha256 "47a18e2e43734fc0915338e32646e856ab799c964f72bebf35a7b4bf215641b4"
     end
   end
   license any_of: ["MIT", "Apache-2.0"]
