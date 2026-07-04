@@ -1,35 +1,35 @@
 class Saltybox < Formula
-  desc "Passphrase-based file encryption tool using NaCl secretbox"
+  desc "Passphrase-based file encryption tool"
   homepage "https://github.com/scode/saltybox"
-  version "3.3.1"
+  version "4.0.0"
   if OS.mac?
     if Hardware::CPU.arm?
-      url "https://github.com/scode/saltybox/releases/download/v3.3.1/saltybox-aarch64-apple-darwin.tar.xz"
-      sha256 "a6828dc0c3cd0ae63bf16c385e8dd4bfede5abe8ceb0eea130635b2b5996701c"
+      url "https://github.com/scode/saltybox/releases/download/v4.0.0/saltybox-aarch64-apple-darwin.tar.xz"
+      sha256 "e194170e4f9f6fc9fce37610df7ace60243cbd9c6600e604e7482074f86a4706"
     end
     if Hardware::CPU.intel?
-      url "https://github.com/scode/saltybox/releases/download/v3.3.1/saltybox-x86_64-apple-darwin.tar.xz"
-      sha256 "91c4164e6217a4250705bd93afee6756935c9e3a5f5f19642c2de4d51d434caf"
+      url "https://github.com/scode/saltybox/releases/download/v4.0.0/saltybox-x86_64-apple-darwin.tar.xz"
+      sha256 "4b8e5b14e209c0c91e84e362f48d73af977724b7dd18bc7874a9f2377aaecd9a"
     end
   end
   if OS.linux?
     if Hardware::CPU.arm?
-      url "https://github.com/scode/saltybox/releases/download/v3.3.1/saltybox-aarch64-unknown-linux-gnu.tar.xz"
-      sha256 "09a755836aba48fb8f638272178776989f1dc97c493553828c3a1cb57951a41f"
+      url "https://github.com/scode/saltybox/releases/download/v4.0.0/saltybox-aarch64-unknown-linux-gnu.tar.xz"
+      sha256 "a99fd74f0919189424a27aef7502ea709e4d46851dc9e333e1c3780eb234465b"
     end
     if Hardware::CPU.intel?
-      url "https://github.com/scode/saltybox/releases/download/v3.3.1/saltybox-x86_64-unknown-linux-gnu.tar.xz"
-      sha256 "af85084eaf1e4ee455dfb8c1b1ba31405708e7da4250050c6acc13ea779e6c8c"
+      url "https://github.com/scode/saltybox/releases/download/v4.0.0/saltybox-x86_64-unknown-linux-gnu.tar.xz"
+      sha256 "4bf1a7618b15348e4dbfaec99153b94d742733b7a8a224b44d2852cdc315dc30"
     end
   end
   license any_of: ["Apache-2.0", "MIT"]
 
   BINARY_ALIASES = {
-    "aarch64-apple-darwin":      {},
+    "aarch64-apple-darwin": {},
     "aarch64-unknown-linux-gnu": {},
-    "x86_64-apple-darwin":       {},
-    "x86_64-unknown-linux-gnu":  {},
-  }.freeze
+    "x86_64-apple-darwin": {},
+    "x86_64-unknown-linux-gnu": {}
+  }
 
   def target_triple
     cpu = Hardware::CPU.arm? ? "aarch64" : "x86_64"
@@ -47,10 +47,18 @@ class Saltybox < Formula
   end
 
   def install
-    bin.install "saltybox" if OS.mac? && Hardware::CPU.arm?
-    bin.install "saltybox" if OS.mac? && Hardware::CPU.intel?
-    bin.install "saltybox" if OS.linux? && Hardware::CPU.arm?
-    bin.install "saltybox" if OS.linux? && Hardware::CPU.intel?
+    if OS.mac? && Hardware::CPU.arm?
+      bin.install "saltybox"
+    end
+    if OS.mac? && Hardware::CPU.intel?
+      bin.install "saltybox"
+    end
+    if OS.linux? && Hardware::CPU.arm?
+      bin.install "saltybox"
+    end
+    if OS.linux? && Hardware::CPU.intel?
+      bin.install "saltybox"
+    end
 
     install_binary_aliases!
 
