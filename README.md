@@ -1,6 +1,12 @@
 # homebrew-dist-tap
 
-This repository is a Homebrew tap set up by the author for releases managed with `cargo-dist`.
+Homebrew formulas for tools published by scode. Install a tool with `brew install scode/dist-tap/<tool>`.
 
-It is intended to work with the Homebrew installer flow documented here:
-[cargo-dist Homebrew installers guide](https://axodotdev.github.io/cargo-dist/book/installers/homebrew.html).
+The tap supports preparing formula updates from explicitly selected upstream releases. Agents research releases and
+maintain the packaging rules; a deterministic Rust xtask downloads the expected archives and records their hashes.
+Upstream projects can use any build system.
+
+The live pull configuration currently opts in no tools. Existing formulas are still published by their upstream
+workflows. Treeward's updater and example configuration demonstrate the pull flow without activating its migration.
+
+For updater commands and their contracts, read [SPEC.md](SPEC.md).

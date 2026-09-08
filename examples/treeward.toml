@@ -1,0 +1,10 @@
+schema_version = 1
+
+[tools.treeward]
+tag = "v0.3.2"
+
+[tools.treeward.sha256]
+aarch64-apple-darwin = "07d9e5de8ee5369c7e6bd3e402cefe2de888269eeafcda3e0af6e4674c9406c1"
+aarch64-unknown-linux-gnu = "9af756b6a39db2ca5fc13f4a4cddc177048aa3f99eb0771a72eb1f38c2e2042a"
+x86_64-apple-darwin = "700d9c0960d6414ad2c8f40c17de34c9e743beefcc86f1c9bed06052cdc14649"
+x86_64-unknown-linux-gnu = "6f99269a5455fe479e776d46ef2ce3b1b70ab6c5a36456ae4e7815ef178b55cd"
