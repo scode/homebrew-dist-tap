@@ -9,4 +9,6 @@ Upstream projects can use any build system.
 The live pull configuration currently opts in no tools. Existing formulas are still published by their upstream
 workflows. Treeward's updater and example configuration demonstrate the pull flow without activating its migration.
 
-For updater commands and their contracts, read [SPEC.md](SPEC.md).
+For updater commands and their contracts, read [SPEC.md](SPEC.md). For onboarding, release review, and testing an
+unmerged candidate, read [the maintenance guide](docs/pull-workflow.md). The
+[treeward verification report](docs/treeward-verification.md) records the platforms and releases actually tested.
