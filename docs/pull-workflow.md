@@ -86,14 +86,23 @@ exactly what a broken or replaced archive would change, and the formula is what 
    catches a bad download or a partial release; it does not vouch for the build.
 3. Review the diff. Only the tool's tag, version, and hash lines should change. Anything else means the tool's archive
    contract or the updater changed and the change needs a wider review.
-4. Install the candidate in an isolated Homebrew environment on at least one native platform, run `brew test`, and
-   upgrade to it from the formula currently on the default branch. On a Linux x86-64 host with Docker, the treeward
-   example script in `examples/` does this in a disposable container; give it the candidate and current formulas and
-   their versions. The verification report shows the invocation.
-5. State in the PR which platforms actually ran the install test. Do not claim the others.
+4. Let the `Formula upgrade` workflow run on the PR. For every pull-managed tool whose formula or `pull.toml` entry the
+   PR changes, it installs the candidate, then installs the base branch's formula and upgrades from it, on native Linux
+   x86-64, Linux ARM64, and macOS ARM64 runners. After each install it checks the keg version, compares the installed
+   executable with the one inside the checksum-verified archive, and runs the formula's test; the candidate's archive is
+   also compared with the hash recorded in `pull.toml`. Its `formula-upgrade` status must be green. It uses
+   `scripts/formula-upgrade-test.sh`, which the container recipe in the verification report also uses; run that locally
+   when a runner is unavailable or a failure needs a pinned environment to reproduce.
+5. State in the PR which platforms actually ran the install test, including any the workflow could not cover.
 
-The verification report is updated when a tool is onboarded or its migration is activated, not for every bump; the PR
-description carries the routine evidence.
+The candidate's expected version and archive hash come from `pull.toml`, so a formula whose `url`, `sha256`, or
+`version` points at a different release than the config records fails rather than verifying itself; a config-only change
+is tested against the unchanged formula for the same reason. The baseline is only checked against its own archive, and
+`brew test` is skipped for a baseline that defines no test block (a formula upstream pushed); the candidate must define
+one. A change that keeps the same version cannot exercise `brew upgrade`, and the workflow says so instead of claiming
+an upgrade. Runner images track current Homebrew and OS versions; they are not a pinned baseline. The verification
+report is updated when a tool is onboarded or its migration is activated, not for every bump; the PR and its workflow
+run carry the routine evidence.
 
 ## Test an unmerged candidate
 
