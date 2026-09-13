@@ -4,8 +4,14 @@
 set -u
 set -o pipefail
 
-test "$#" -eq 1 || exit 2
+# Arguments: inputs directory holding new/treeward.rb and old/treeward.rb, then
+# the versions those two formulas are expected to install. Versions are
+# explicit rather than parsed from the formulas so a wrong input fails loudly
+# instead of being verified against itself.
+test "$#" -eq 3 || exit 2
 acceptance_inputs=$1
+new_version=$2
+old_version=$3
 formula=local/pull-check/treeward
 tap_dir="$(brew --repository)/Library/Taps/local/homebrew-pull-check" || exit 1
 mkdir -p "$tap_dir/Formula" || exit 1
@@ -24,7 +30,14 @@ verify_installed() {
   archive_hash=$(tar -xOJf "$cache_path" treeward-x86_64-unknown-linux-gnu/treeward | sha256sum) || return 1
   test "${installed_hash%% *}" = "${archive_hash%% *}" || return 1
   printf 'Verified installed executable SHA-256: %s\n' "${installed_hash%% *}"
-  brew test "$formula" || return 1
+  # The upgrade baseline may be a formula the upstream publisher pushed, which
+  # has no test block; `brew test` errors on such a formula rather than
+  # passing vacuously, so skip it there and say so instead of failing the trial.
+  if grep -q '^  test do$' "$tap_dir/Formula/treeward.rb"; then
+    brew test "$formula" || return 1
+  else
+    printf 'Formula defines no test block; skipping brew test for %s\n' "$expected_version"
+  fi
 }
 
 uname -m || exit 1
@@ -34,13 +47,13 @@ brew --version || exit 1
 
 cp "$acceptance_inputs/new/treeward.rb" "$tap_dir/Formula/treeward.rb" || exit 1
 brew install "$formula" || exit 1
-verify_installed 0.3.2 || exit 1
+verify_installed "$new_version" || exit 1
 brew uninstall "$formula" || exit 1
 
 cp "$acceptance_inputs/old/treeward.rb" "$tap_dir/Formula/treeward.rb" || exit 1
 brew install "$formula" || exit 1
-verify_installed 0.3.1 || exit 1
+verify_installed "$old_version" || exit 1
 cp "$acceptance_inputs/new/treeward.rb" "$tap_dir/Formula/treeward.rb" || exit 1
 brew upgrade "$formula" || exit 1
-verify_installed 0.3.2 || exit 1
+verify_installed "$new_version" || exit 1
 printf 'PASS: fresh install, functional tests, and upgrade on native Linux x86-64\n'

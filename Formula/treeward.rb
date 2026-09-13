@@ -1,65 +1,43 @@
 class Treeward < Formula
   desc "A command line tool for checksumming and verifying trees of files"
   homepage "https://github.com/scode/treeward"
-  version "0.3.2"
-  if OS.mac?
-    if Hardware::CPU.arm?
-      url "https://github.com/scode/treeward/releases/download/v0.3.2/treeward-aarch64-apple-darwin.tar.xz"
-      sha256 "07d9e5de8ee5369c7e6bd3e402cefe2de888269eeafcda3e0af6e4674c9406c1"
-    end
-    if Hardware::CPU.intel?
-      url "https://github.com/scode/treeward/releases/download/v0.3.2/treeward-x86_64-apple-darwin.tar.xz"
-      sha256 "700d9c0960d6414ad2c8f40c17de34c9e743beefcc86f1c9bed06052cdc14649"
-    end
-  end
-  if OS.linux?
-    if Hardware::CPU.arm?
-      url "https://github.com/scode/treeward/releases/download/v0.3.2/treeward-aarch64-unknown-linux-gnu.tar.xz"
-      sha256 "9af756b6a39db2ca5fc13f4a4cddc177048aa3f99eb0771a72eb1f38c2e2042a"
-    end
-    if Hardware::CPU.intel?
-      url "https://github.com/scode/treeward/releases/download/v0.3.2/treeward-x86_64-unknown-linux-gnu.tar.xz"
-      sha256 "6f99269a5455fe479e776d46ef2ce3b1b70ab6c5a36456ae4e7815ef178b55cd"
-    end
-  end
+  version "0.3.3"
   license any_of: ["MIT", "Apache-2.0"]
 
-  BINARY_ALIASES = {
-    "aarch64-apple-darwin":      {},
-    "aarch64-unknown-linux-gnu": {},
-    "x86_64-apple-darwin":       {},
-    "x86_64-unknown-linux-gnu":  {},
-  }.freeze
+  on_macos do
+    on_arm do
+      url "https://github.com/scode/treeward/releases/download/v0.3.3/treeward-aarch64-apple-darwin.tar.xz"
+      sha256 "9710b1888ea6b5897fac24ee4bcc37677b369ab67a6dacde38a50339310276ee"
+    end
 
-  def target_triple
-    cpu = Hardware::CPU.arm? ? "aarch64" : "x86_64"
-    os = OS.mac? ? "apple-darwin" : "unknown-linux-gnu"
-
-    "#{cpu}-#{os}"
+    on_intel do
+      url "https://github.com/scode/treeward/releases/download/v0.3.3/treeward-x86_64-apple-darwin.tar.xz"
+      sha256 "4132cfefac9629cc8ef4c8086bc12fddb53a1569ab824ca650c8332fd6b90742"
+    end
   end
 
-  def install_binary_aliases!
-    BINARY_ALIASES[target_triple.to_sym].each do |source, dests|
-      dests.each do |dest|
-        bin.install_symlink bin/source.to_s => dest
-      end
+  on_linux do
+    on_arm do
+      url "https://github.com/scode/treeward/releases/download/v0.3.3/treeward-aarch64-unknown-linux-gnu.tar.xz"
+      sha256 "2a916a36d1e14f5a82dbc8e26d96ca437f949cacdf2979e5346bc76bf46f84e6"
+    end
+
+    on_intel do
+      url "https://github.com/scode/treeward/releases/download/v0.3.3/treeward-x86_64-unknown-linux-gnu.tar.xz"
+      sha256 "b0246b228add03ff34804eb48f125ba9bd8dfc9df62e8bd9a34f6e3101e0d231"
     end
   end
 
   def install
-    bin.install "treeward" if OS.mac? && Hardware::CPU.arm?
-    bin.install "treeward" if OS.mac? && Hardware::CPU.intel?
-    bin.install "treeward" if OS.linux? && Hardware::CPU.arm?
-    bin.install "treeward" if OS.linux? && Hardware::CPU.intel?
+    bin.install "treeward"
+    doc.install "README.md", "CHANGELOG.md", "LICENSE"
+  end
 
-    install_binary_aliases!
-
-    # Homebrew will automatically install these, so we don't need to do that
-    doc_files = Dir["README.*", "readme.*", "LICENSE", "LICENSE.*", "CHANGELOG.*"]
-    leftover_contents = Dir["*"] - doc_files
-
-    # Install any leftover files in pkgshare; these are probably config or
-    # sample files.
-    pkgshare.install(*leftover_contents) unless leftover_contents.empty?
+  test do
+    (testpath/"content").write "original"
+    system bin/"treeward", "init"
+    system bin/"treeward", "verify"
+    File.write(testpath/"content", "changed")
+    assert_match "Verification failed", shell_output("#{bin}/treeward verify 2>&1", 1)
   end
 end
