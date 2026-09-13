@@ -8,6 +8,10 @@ of committed reports.
 
 ## Packaging constraints
 
+Read [the migration rationale](docs/pull-workflow.md#why-this-migration-exists) before changing the publishing workflow.
+It records the intended security and review model, the accepted piecemeal transition, and why maintenance stays
+per-tool.
+
 An agent selects releases and researches packaging changes. The xtask operates on explicit inputs; never add automatic
 release selection or let generated metadata execute upstream code. SPEC.md defines its user-visible contract. Update the
 specification and meaningful tests with behavior changes.
@@ -15,6 +19,10 @@ specification and meaningful tests with behavior changes.
 The live pull.toml is an opt-in list. Tools absent from it remain push-managed. Never modify an unrelated formula or
 disable an upstream publisher as a side effect of onboarding. Coordinate the publisher switch with the owner when an
 actual migration is requested. An example configuration demonstrates behavior without opting a tool into live updates.
+
+Follow [the maintenance guide](docs/pull-workflow.md) for onboarding, explicit release updates, and testing unmerged
+candidates. Check [the treeward verification report](docs/treeward-verification.md) for established runtime coverage;
+downloading an archive does not establish that it runs on its target platform.
 
 Prefer straightforward per-tool Rust code. Extract shared helpers for actual repetition or testability, not a generic
 packaging framework. Keep upstream build choices independent of this tap.
