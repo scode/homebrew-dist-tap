@@ -75,6 +75,26 @@ the intended repository and release, preserved target coverage, and no unrelated
 candidate to confirm that config and generated output agree. Commit and PR creation remain agent operations, outside the
 deterministic tool. Coordinate a release update through the normal human review and merge process.
 
+### Routine update checklist
+
+A routine version bump of an already pull-managed tool is complete when all of these have been done and the PR states
+the outcome of each. Skipping the install test because the diff "only changes hashes" is not acceptable: the hashes are
+exactly what a broken or replaced archive would change, and the formula is what users run.
+
+1. Run `update --dry-run`, then `update`, then `regenerate --check`.
+2. Compare the recorded hashes with the checksums upstream published alongside the release, when it publishes any. This
+   catches a bad download or a partial release; it does not vouch for the build.
+3. Review the diff. Only the tool's tag, version, and hash lines should change. Anything else means the tool's archive
+   contract or the updater changed and the change needs a wider review.
+4. Install the candidate in an isolated Homebrew environment on at least one native platform, run `brew test`, and
+   upgrade to it from the formula currently on the default branch. On a Linux x86-64 host with Docker, the treeward
+   example script in `examples/` does this in a disposable container; give it the candidate and current formulas and
+   their versions. The verification report shows the invocation.
+5. State in the PR which platforms actually ran the install test. Do not claim the others.
+
+The verification report is updated when a tool is onboarded or its migration is activated, not for every bump; the PR
+description carries the routine evidence.
+
 ## Test an unmerged candidate
 
 A Homebrew tap is a Git checkout. An installed tap can use a branch or detached commit rather than the default branch;
