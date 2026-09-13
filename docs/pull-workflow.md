@@ -4,8 +4,9 @@ Use agents for release research and packaging changes. Use the Rust updater for 
 builder upstream uses does not matter: dist, custom CI, and other builders are compatible when their release archives
 meet the tool's documented contract.
 
-The live pull.toml starts empty. Treeward is a working example, not an activated migration. Its existing upstream
-publisher still owns the live formula. Do not copy an example into live configuration without coordinating that switch.
+The live pull.toml is an opt-in list. Treeward is the first activated migration: its upstream release workflow no longer
+pushes a formula, and the live entry here owns `Formula/treeward.rb`. Other tools stay push-managed until their own
+coordinated switch. Do not copy an example into live configuration without coordinating that switch.
 
 ## Why this migration exists
 
@@ -73,6 +74,26 @@ Review the config and formula together. Look for the intended tag and four asset
 the intended repository and release, preserved target coverage, and no unrelated file changes. Regenerate and check the
 candidate to confirm that config and generated output agree. Commit and PR creation remain agent operations, outside the
 deterministic tool. Coordinate a release update through the normal human review and merge process.
+
+### Routine update checklist
+
+A routine version bump of an already pull-managed tool is complete when all of these have been done and the PR states
+the outcome of each. Skipping the install test because the diff "only changes hashes" is not acceptable: the hashes are
+exactly what a broken or replaced archive would change, and the formula is what users run.
+
+1. Run `update --dry-run`, then `update`, then `regenerate --check`.
+2. Compare the recorded hashes with the checksums upstream published alongside the release, when it publishes any. This
+   catches a bad download or a partial release; it does not vouch for the build.
+3. Review the diff. Only the tool's tag, version, and hash lines should change. Anything else means the tool's archive
+   contract or the updater changed and the change needs a wider review.
+4. Install the candidate in an isolated Homebrew environment on at least one native platform, run `brew test`, and
+   upgrade to it from the formula currently on the default branch. On a Linux x86-64 host with Docker, the treeward
+   example script in `examples/` does this in a disposable container; give it the candidate and current formulas and
+   their versions. The verification report shows the invocation.
+5. State in the PR which platforms actually ran the install test. Do not claim the others.
+
+The verification report is updated when a tool is onboarded or its migration is activated, not for every bump; the PR
+description carries the routine evidence.
 
 ## Test an unmerged candidate
 

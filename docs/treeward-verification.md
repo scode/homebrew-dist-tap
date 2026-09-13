@@ -1,13 +1,51 @@
 # Treeward pull verification
 
+Two trials are recorded here. The first, on 2026-09-08, exercised the tooling against real releases without touching the
+live tap. The second, on 2026-09-13, verified the candidate that activates treeward's migration: the first
+pull-generated formula committed to `Formula/treeward.rb`, upgrading from the last formula the upstream publisher
+pushed. Both established native runtime coverage on Linux x86-64 only; the Linux ARM64 and macOS archives were
+downloaded and validated but not executed.
+
+## Migration candidate, 2026-09-13
+
+Upstream released [treeward v0.3.3](https://github.com/scode/treeward/releases/tag/v0.3.3) after its release workflow
+stopped pushing a formula, so no `treeward.rb` was attached to the release and the tap formula stayed at v0.3.2. The
+candidate was produced by `cargo xtask update treeward --tag v0.3.3` against the live `pull.toml`, which was empty and
+gained its first entry. `regenerate --check` passed afterwards. The four recorded archive hashes matched the checksums
+upstream published alongside the release (`sha256.sum` and the per-archive `.sha256` files); this is a consistency check
+between two views of the same release, not independent evidence about the build.
+
+| Formula                         | SHA-256                                                            |
+| ------------------------------- | ------------------------------------------------------------------ |
+| Candidate v0.3.3 (pull)         | `85c9c4c88181a707bdbf6f176c6854d994b4f07fe0f41a73989d64b68f9da5a0` |
+| Previous v0.3.2 (upstream push) | `f472954814b6153410e0aa6b9ad23976999dc2143894fe21f07d4edba0678b7b` |
+
+The upgrade baseline was deliberately the formula upstream had pushed, not a pull-generated v0.3.2, because that is what
+existing installations actually have. The two formulas differ in structure (dist's generated Ruby versus the tap's
+renderer) and the pushed one defines no `test` block. The acceptance script now skips `brew test` for a formula without
+one and says so, rather than failing the trial; the first run of this trial failed at exactly that point.
+
+The container environment was the same pinned image as the first trial (Ubuntu 24.04.4 LTS, glibc 2.39, Homebrew 6.0.22,
+digest below). The v0.3.3 Linux x86-64 archive SHA-256 was
+`b0246b228add03ff34804eb48f125ba9bd8dfc9df62e8bd9a34f6e3101e0d231`; its installed executable matched
+`b2138387afeb30ece7bdceb910c98bd37ce5b0f97992f91d60bbbda8e43aff1f` after both fresh install and upgrade.
+
+| Operation                                                              | Result |
+| ---------------------------------------------------------------------- | ------ |
+| Fresh v0.3.3 install, installed-byte identity, functional test         | Passed |
+| Uninstall, then pushed v0.3.2 install, identity (no test block)        | Passed |
+| `brew upgrade` from pushed v0.3.2 to v0.3.3, identity, functional test | Passed |
+
+To repeat it, place the candidate formula at `new/treeward.rb` and the previously committed formula at `old/treeward.rb`
+in the inputs directory, then run the container recipe below with `0.3.3 0.3.2` as the version arguments.
+
+## Tooling trial, 2026-09-08
+
 Verified on 2026-09-08: the updater generated a candidate from real upstream releases, Homebrew installed treeward
-v0.3.2, and upgrading from v0.3.1 to v0.3.2 passed. Native runtime coverage is Linux x86-64 only. The four platform
-archives were downloaded and validated; Linux ARM64 and both macOS binaries were not executed.
+v0.3.2, and upgrading from v0.3.1 to v0.3.2 passed. At that point the live `pull.toml` was empty; these were uncommitted
+scratch formulas, and the existing `Formula/treeward.rb` and upstream publisher were not changed.
 
-The live `pull.toml` remains empty. These were uncommitted scratch formulas; the existing `Formula/treeward.rb` and
-upstream publisher were not changed. This report records a tooling trial, not an activated migration.
-
-## Candidate identity
+### Candidate identity
 
 Tooling commit: `83da74bb7f9aed556bfd963e6432f38ef51e186f`. The tested source tree is identical to this commit, and
 regeneration from the committed tooling reproduced the formula digest below. The formula itself was scratch output, so
@@ -25,7 +63,7 @@ upgrade baseline. Its Linux x86-64 archive SHA-256 was
 `47a18e2e43734fc0915338e32646e856ab799c964f72bebf35a7b4bf215641b4`; the v0.3.2 Linux x86-64 archive was
 `6f99269a5455fe479e776d46ef2ce3b1b70ab6c5a36456ae4e7815ef178b55cd`.
 
-## Environment and results
+### Environment and results
 
 The disposable container ran as the ordinary `linuxbrew` image user at Homebrew's supported prefix. No host home
 directory, publishing credentials, or writable repository was mounted. Inputs were the generated formulas and the
@@ -63,12 +101,12 @@ recorded formula digest. Replacing a recorded hash with 64 zeroes made regenerat
 before creating its output directory. Routine CI covers failure contracts with local fixtures rather than depending on
 these mutable upstream URLs.
 
-## Repeat the trial
+### Repeat the trial
 
-Use a checkout of the documented tooling commit to generate inputs. Obtain the acceptance script from this report's
-revision: it is the same script used for the trial and intentionally fixes these two treeward releases and Linux x86-64.
-It is an example for reproducing this observation, not a general platform runner. For other tools or candidates, use the
-parameterized recipe in [the maintenance guide](pull-workflow.md).
+Use a checkout of the documented tooling commit to generate inputs. The acceptance script takes the inputs directory and
+the two expected versions as arguments; it is fixed to treeward on Linux x86-64 and is an example for reproducing this
+observation, not a general platform runner. For other tools, use the parameterized recipe in
+[the maintenance guide](pull-workflow.md).
 
 From the tooling checkout, use an empty scratch directory outside the tap:
 
@@ -96,7 +134,7 @@ docker run --rm --network bridge \
   --mount "type=bind,src=$trial,dst=/inputs,readonly" \
   --mount "type=bind,src=$acceptance_script,dst=/acceptance.sh,readonly" \
   ghcr.io/homebrew/ubuntu24.04@sha256:613f2f524c4d1fb8fe37dbe7a5581392c89e7865bac725bab0d8e24309ae6d7c \
-  bash /acceptance.sh /inputs
+  bash /acceptance.sh /inputs 0.3.2 0.3.1
 ```
 
 The script prints the environment, installed versions, executable digests, formula tests, and a final PASS marker. It
