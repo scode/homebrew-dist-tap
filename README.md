@@ -11,5 +11,6 @@ from an explicitly selected release and reviewed before merge. The other formula
 workflows until each is migrated.
 
 For updater commands and their contracts, read [SPEC.md](SPEC.md). For onboarding, release review, and testing an
-unmerged candidate, read [the maintenance guide](docs/pull-workflow.md). The
-[treeward verification report](docs/treeward-verification.md) records the platforms and releases actually tested.
+unmerged candidate, read [the maintenance guide](docs/pull-workflow.md). The verification reports for
+[treeward](docs/treeward-verification.md) and [saltybox](docs/saltybox-verification.md) record the platforms and
+releases actually tested.

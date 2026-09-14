@@ -1234,3 +1234,51 @@ fn unregistered_tool_is_rejected_before_fetch() {
     let error = validate_config(&parsed).unwrap_err();
     assert!(format!("{error:#}").contains("unsupported tool: juggler"));
 }
+
+// Treeward-specific spellings used throughout the older tests. They live here
+// rather than in the production module because they exist only to keep those
+// call sites readable; production code always goes through a `ToolSpec`.
+fn treeward_url(tag: &str, target: &str) -> String {
+    release_url(&TREEWARD, tag, target)
+}
+
+fn validate_treeward_archive(bytes: &[u8], target: &str) -> Result<()> {
+    validate_archive(&TREEWARD, bytes, target)
+}
+
+fn validate_treeward_archive_with_limits(
+    bytes: &[u8],
+    target: &str,
+    limits: ArchiveLimits,
+) -> Result<()> {
+    validate_archive_with_limits(&TREEWARD, bytes, target, limits)
+}
+
+fn render_treeward(tool: &Tool) -> Result<String> {
+    render(&TREEWARD, tool)
+}
+
+#[test]
+/// Homebrew derives the Ruby class from the file name, so a hand-maintained
+/// `class_name` that disagrees with `name` produces a formula Homebrew refuses to
+/// load. Every registered tool's rendered formula must open with the class Homebrew
+/// expects, and its install line and URLs must use the same name.
+fn every_tool_renders_the_class_homebrew_expects() {
+    for spec in TOOLS {
+        let fixtures = Fixtures::for_tools(&[(spec, "v9.9.9")]);
+        let tool = selected_for(spec, "v9.9.9", &fixtures);
+        let formula = render(spec, &tool).unwrap();
+        let mut expected_class = spec.name.chars();
+        let expected_class: String = expected_class
+            .next()
+            .map(|first| first.to_ascii_uppercase())
+            .into_iter()
+            .chain(expected_class)
+            .collect();
+        assert_eq!(expected_class, spec.class_name, "{}", spec.name);
+        assert!(formula.starts_with(&format!("class {expected_class} < Formula\n")));
+        assert!(formula.contains(&format!("bin.install \"{}\"", spec.name)));
+        assert!(formula.contains(&format!("/{}-x86_64-apple-darwin.tar.xz", spec.name)));
+        assert!(formula.contains("  test do\n"));
+    }
+}

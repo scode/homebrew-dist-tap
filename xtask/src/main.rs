@@ -618,12 +618,6 @@ fn release_url(spec: &ToolSpec, tag: &str, target: &str) -> String {
     )
 }
 
-/// Treeward-specific spelling retained for the test module's fixtures.
-#[cfg(test)]
-fn treeward_url(tag: &str, target: &str) -> String {
-    release_url(&TREEWARD, tag, target)
-}
-
 /// Render compressed-byte identity in the schema's canonical lowercase form.
 fn hex_digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
@@ -648,22 +642,6 @@ const ARCHIVE_LIMITS: ArchiveLimits = ArchiveLimits {
 /// Validate the exact release layout and the complete xz and tar containers.
 fn validate_archive(spec: &ToolSpec, bytes: &[u8], target: &str) -> Result<()> {
     validate_archive_with_limits(spec, bytes, target, ARCHIVE_LIMITS)
-}
-
-/// Treeward-specific spelling retained for the test module.
-#[cfg(test)]
-fn validate_treeward_archive(bytes: &[u8], target: &str) -> Result<()> {
-    validate_archive(&TREEWARD, bytes, target)
-}
-
-/// Treeward-specific spelling retained for the test module.
-#[cfg(test)]
-fn validate_treeward_archive_with_limits(
-    bytes: &[u8],
-    target: &str,
-    limits: ArchiveLimits,
-) -> Result<()> {
-    validate_archive_with_limits(&TREEWARD, bytes, target, limits)
 }
 
 /// Keep test bounds small while production uses the documented resource limits.
@@ -769,12 +747,6 @@ fn validate_archive_with_limits(
         bail!("archive does not contain the expected executable release layout");
     }
     Ok(())
-}
-
-/// Treeward-specific spelling retained for the test module.
-#[cfg(test)]
-fn render_treeward(tool: &Tool) -> Result<String> {
-    render(&TREEWARD, tool)
 }
 
 /// Compose Ruby from validated local values rather than upstream formula code.
