@@ -1,5 +1,14 @@
 schema_version = 1
 
+[tools.saltybox]
+tag = "v5.0.1"
+
+[tools.saltybox.sha256]
+aarch64-apple-darwin = "bac50d57cfb160a683008ab9bd92c3da79096372d754b9c094610c8542f0e334"
+aarch64-unknown-linux-gnu = "7e7f88dbc6f00c1044e6c8484922801103dcffdd49e4f4be831338817d06593d"
+x86_64-apple-darwin = "e7c86ab7cfaf4fa35fc6c34cb7baccf40cfec774b87e3c473c48a64e82e416fa"
+x86_64-unknown-linux-gnu = "ac33a5485cad2e7949603d59e590c52104eaf411a45ebce71f569b948fa68102"
+
 [tools.treeward]
 tag = "v0.3.3"
 

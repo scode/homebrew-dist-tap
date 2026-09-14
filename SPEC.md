@@ -17,10 +17,10 @@ The three global options may appear before or after the subcommand. `--config` d
 invocation directory. The default output directory is `Formula` beside the resolved configuration path. An explicit
 `--output-dir` is relative to the invocation directory. `--verbose` adds download details to diagnostics.
 
-`update` supports `treeward` and requires an explicit safe `v`-prefixed SemVer tag. It accepts prerelease and build
-syntax, including `v1.2.3-rc.1+build.4`, but rejects slashes, whitespace, quotes, and other characters outside ASCII
-letters, digits, `.`, `-`, and `+`. Historical tags are allowed for reproduction. The agent running a live update must
-review version direction because the tool does not prevent downgrades.
+`update` supports `treeward` and `saltybox` and requires an explicit safe `v`-prefixed SemVer tag. It accepts prerelease
+and build syntax, including `v1.2.3-rc.1+build.4`, but rejects slashes, whitespace, quotes, and other characters outside
+ASCII letters, digits, `.`, `-`, and `+`. Historical tags are allowed for reproduction. The agent running a live update
+must review version direction because the tool does not prevent downgrades.
 
 `regenerate` uses only tags and hashes already in the configuration. `--check` compares the validated generated formula
 with disk and returns a runtime failure when it is missing or different. It never writes.
@@ -61,12 +61,14 @@ hash map. An update to the recorded tag still downloads every archive and requir
 changed bytes at one tag are an integrity error. `regenerate` also requires all downloaded bytes to match their recorded
 hashes. A partial release never changes an output.
 
-## Treeward archive contract
+## Archive contract
 
-For tag `<tag>` and Rust target `<target>`, the only permitted URL is:
+Both registered tools publish the same dist archive layout, so one contract covers them with the tool's name
+substituted. For tool `<tool>` (published from `scode/<tool>`), tag `<tag>`, and Rust target `<target>`, the only
+permitted URL is:
 
 ```text
-https://github.com/scode/treeward/releases/download/<tag>/treeward-<target>.tar.xz
+https://github.com/scode/<tool>/releases/download/<tag>/<tool>-<target>.tar.xz
 ```
 
 The initial request must use GitHub HTTPS. Redirects may follow release delivery to other HTTPS hosts, but an HTTP
@@ -79,18 +81,18 @@ limited to 256 MiB. A corrupt or truncated xz trailer, second compressed stream,
 expanded tar must have at most 1024 entries and contain exactly:
 
 ```text
-treeward-<target>/
-treeward-<target>/README.md
-treeward-<target>/CHANGELOG.md
-treeward-<target>/LICENSE
-treeward-<target>/treeward
+<tool>-<target>/
+<tool>-<target>/README.md
+<tool>-<target>/CHANGELOG.md
+<tool>-<target>/LICENSE
+<tool>-<target>/<tool>
 ```
 
-The directory must be a directory entry. Its four children must be regular files, and `treeward` must have at least one
-executable bit. Absolute paths, parent traversal, non-UTF-8 paths, duplicates, links, special files, missing or
-unexpected entries, and data sizes that cannot be consumed all fail. Tar must have a complete two-block end marker. Only
-bounded zero padding is accepted after the first end block; any nonzero trailing expanded data or hidden second tar
-payload fails.
+The directory must be a directory entry. Its four children must be regular files, and `<tool>` must have at least one
+executable bit. One tool's archive is not accepted for another: the root and binary names must match the selected tool.
+Absolute paths, parent traversal, non-UTF-8 paths, duplicates, links, special files, missing or unexpected entries, and
+data sizes that cannot be consumed all fail. Tar must have a complete two-block end marker. Only bounded zero padding is
+accepted after the first end block; any nonzero trailing expanded data or hidden second tar payload fails.
 
 GNU and PAX extension headers are unexpected entries and are rejected, including headers that an ordinary tar reader
 would consume as metadata for a later file. Archive validation does not extract or execute content. SHA-256 covers the
@@ -99,9 +101,11 @@ original compressed bytes.
 ## Outputs and failure behavior
 
 The formula path is `<output-dir>/<tool>.rb`. Generated TOML and Ruby use stable sorted input and contain no timestamps.
-The treeward formula selects the four supported platform and architecture combinations explicitly, installs only
-`treeward`, `README.md`, `CHANGELOG.md`, and `LICENSE`, and tests a successful verification followed by the observed
-`Verification failed` result after content changes.
+Every formula selects the four supported platform and architecture combinations explicitly and installs only the tool's
+binary, `README.md`, `CHANGELOG.md`, and `LICENSE`. The treeward formula tests a successful verification followed by the
+observed `Verification failed` result after content changes. The saltybox formula encrypts a file with a passphrase
+supplied through `--passphrase-stdin`, decrypts it and compares the plaintext, then requires a decrypt with a wrong
+passphrase to exit 1 with `failed to decrypt` and produce no output file.
 
 Before network access, the tool validates all destinations it may use. Existing output directories must be directories,
 and existing formula destinations must be regular UTF-8 files. Every existing destination path component must be

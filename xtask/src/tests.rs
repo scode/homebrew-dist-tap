@@ -21,9 +21,21 @@ struct Fixtures {
 
 impl Fixtures {
     fn for_tag(tag: &str) -> Self {
-        let responses = TARGETS
-            .into_iter()
-            .map(|target| (treeward_url(tag, target), valid_archive(target)))
+        Self::for_tools(&[(&TREEWARD, tag)])
+    }
+
+    /// Serve one release per listed tool so multi-tool regeneration can be exercised.
+    fn for_tools(releases: &[(&ToolSpec, &str)]) -> Self {
+        let responses = releases
+            .iter()
+            .flat_map(|(spec, tag)| {
+                TARGETS.into_iter().map(move |target| {
+                    (
+                        release_url(spec, tag, target),
+                        archive_named(spec.name, target, |_| {}),
+                    )
+                })
+            })
             .collect();
         Self {
             responses,
@@ -128,12 +140,21 @@ fn compress(bytes: &[u8]) -> Vec<u8> {
     compressed
 }
 
-/// Build the valid five-entry contract, then let one test mutate its attack surface.
+/// Treeward-named archive; most contract tests use it because the layout is shared.
 fn archive_with(
     target: &str,
     changes: impl FnOnce(&mut Vec<(String, EntryType, u32, Vec<u8>)>),
 ) -> Vec<u8> {
-    let root = format!("treeward-{target}");
+    archive_named("treeward", target, changes)
+}
+
+/// Build the valid five-entry contract for a tool, then let one test mutate its attack surface.
+fn archive_named(
+    name: &str,
+    target: &str,
+    changes: impl FnOnce(&mut Vec<(String, EntryType, u32, Vec<u8>)>),
+) -> Vec<u8> {
+    let root = format!("{name}-{target}");
     let mut entries = vec![
         (root.clone(), EntryType::Directory, 0o755, Vec::new()),
         (
@@ -155,7 +176,7 @@ fn archive_with(
             b"license".to_vec(),
         ),
         (
-            format!("{root}/treeward"),
+            format!("{root}/{name}"),
             EntryType::Regular,
             0o755,
             b"binary".to_vec(),
@@ -174,12 +195,20 @@ fn valid_archive(target: &str) -> Vec<u8> {
     archive_with(target, |_| {})
 }
 
-/// Record hashes from exactly the fixture bytes returned for a selected tag.
+/// Record hashes from exactly the fixture bytes returned for a selected treeward tag.
 fn selected(tag: &str, fixtures: &Fixtures) -> Tool {
+    selected_for(&TREEWARD, tag, fixtures)
+}
+
+/// Record hashes from exactly the fixture bytes returned for a tool's selected tag.
+fn selected_for(spec: &ToolSpec, tag: &str, fixtures: &Fixtures) -> Tool {
     let sha256 = TARGETS
         .into_iter()
         .map(|target| {
-            let bytes = fixtures.responses.get(&treeward_url(tag, target)).unwrap();
+            let bytes = fixtures
+                .responses
+                .get(&release_url(spec, tag, target))
+                .unwrap();
             (target.to_owned(), hex_digest(bytes))
         })
         .collect();
@@ -191,11 +220,17 @@ fn selected(tag: &str, fixtures: &Fixtures) -> Tool {
 
 /// Construct either the live empty schema or one opted-in treeward selection.
 fn config(tool: Option<Tool>) -> Config {
+    config_of(tool.into_iter().map(|tool| ("treeward", tool)))
+}
+
+/// Construct a configuration opting in the named tools.
+fn config_of(tools: impl IntoIterator<Item = (&'static str, Tool)>) -> Config {
     Config {
         schema_version: 1,
-        tools: tool
-            .map(|tool| BTreeMap::from([("treeward".to_owned(), tool)]))
-            .unwrap_or_default(),
+        tools: tools
+            .into_iter()
+            .map(|(name, tool)| (name.to_owned(), tool))
+            .collect(),
     }
 }
 
@@ -204,14 +239,19 @@ fn write_config(path: &Path, config: &Config) {
     fs::write(path, toml::to_string_pretty(config).unwrap()).unwrap();
 }
 
-/// Build update arguments directly so tests can inject cwd without process mutation.
+/// Build treeward update arguments directly so tests can inject cwd without process mutation.
 fn update_cli(config: &Path, output: &Path, tag: &str, dry_run: bool) -> Cli {
+    update_cli_for("treeward", config, output, tag, dry_run)
+}
+
+/// Build update arguments for any tool name, including unregistered ones.
+fn update_cli_for(tool: &str, config: &Path, output: &Path, tag: &str, dry_run: bool) -> Cli {
     Cli {
         config: config.to_path_buf(),
         output_dir: Some(output.to_path_buf()),
         verbose: false,
         command: Command::Update(UpdateArgs {
-            tool: "treeward".to_owned(),
+            tool: tool.to_owned(),
             tag: tag.to_owned(),
             dry_run,
         }),
@@ -1077,4 +1117,120 @@ fn archive_resource_limits_are_enforced() {
         )
         .is_err()
     );
+}
+
+#[test]
+/// Saltybox shares treeward's archive layout but must render its own identity and test,
+/// and selecting it must never touch treeward's formula.
+fn saltybox_update_renders_its_own_formula() {
+    let directory = tempdir().unwrap();
+    let config_path = directory.path().join("pull.toml");
+    let output = directory.path().join("Formula");
+    write_config(&config_path, &config(None));
+    let fixtures = Fixtures::for_tools(&[(&SALTYBOX, "v5.0.1")]);
+
+    run_from(
+        update_cli_for("saltybox", &config_path, &output, "v5.0.1", false),
+        directory.path(),
+        &fixtures,
+        &RealFileOps,
+    )
+    .unwrap();
+
+    let expected = config_of([("saltybox", selected_for(&SALTYBOX, "v5.0.1", &fixtures))]);
+    assert_eq!(
+        fs::read_to_string(&config_path).unwrap(),
+        toml::to_string_pretty(&expected).unwrap()
+    );
+    let formula = fs::read_to_string(output.join("saltybox.rb")).unwrap();
+    assert_eq!(
+        formula,
+        render(&SALTYBOX, &expected.tools["saltybox"]).unwrap()
+    );
+    assert!(formula.starts_with("class Saltybox < Formula\n"));
+    assert!(formula.contains("https://github.com/scode/saltybox/releases/download/v5.0.1/saltybox-x86_64-apple-darwin.tar.xz"));
+    assert!(formula.contains("--passphrase-stdin"));
+    assert!(formula.contains(r#"bin.install "saltybox""#));
+    assert!(!formula.contains("treeward"));
+    assert!(!output.join("treeward.rb").exists());
+    assert_eq!(fixtures.calls.get(), 4);
+}
+
+#[test]
+/// The archive root and binary are named after the tool, so one tool's release must not
+/// validate as another's even though the file set is otherwise identical.
+fn archive_root_must_name_the_selected_tool() {
+    let target = TARGETS[3];
+    let treeward = archive_named("treeward", target, |_| {});
+    let saltybox = archive_named("saltybox", target, |_| {});
+    assert!(validate_archive(&TREEWARD, &treeward, target).is_ok());
+    assert!(validate_archive(&SALTYBOX, &saltybox, target).is_ok());
+    assert!(validate_archive(&SALTYBOX, &treeward, target).is_err());
+    assert!(validate_archive(&TREEWARD, &saltybox, target).is_err());
+}
+
+#[test]
+/// Regeneration resolves each configured tool to its own contract, downloading every
+/// archive of every tool and rendering each formula from its own spec.
+fn regenerate_handles_both_tools() {
+    let directory = tempdir().unwrap();
+    let config_path = directory.path().join("pull.toml");
+    let output = directory.path().join("Formula");
+    let fixtures = Fixtures::for_tools(&[(&SALTYBOX, "v5.0.1"), (&TREEWARD, "v1.2.3")]);
+    write_config(
+        &config_path,
+        &config_of([
+            ("saltybox", selected_for(&SALTYBOX, "v5.0.1", &fixtures)),
+            ("treeward", selected_for(&TREEWARD, "v1.2.3", &fixtures)),
+        ]),
+    );
+
+    run_from(
+        regenerate_cli(&config_path, &output, false),
+        directory.path(),
+        &fixtures,
+        &RealFileOps,
+    )
+    .unwrap();
+
+    assert_eq!(fixtures.calls.get(), 8);
+    assert!(
+        fs::read_to_string(output.join("saltybox.rb"))
+            .unwrap()
+            .starts_with("class Saltybox < Formula\n")
+    );
+    assert!(
+        fs::read_to_string(output.join("treeward.rb"))
+            .unwrap()
+            .starts_with("class Treeward < Formula\n")
+    );
+}
+
+#[test]
+/// An unregistered tool must be rejected before any download, whether it arrives on the
+/// command line or in the configuration.
+fn unregistered_tool_is_rejected_before_fetch() {
+    let directory = tempdir().unwrap();
+    let config_path = directory.path().join("pull.toml");
+    let output = directory.path().join("Formula");
+    write_config(&config_path, &config(None));
+    let fixtures = Fixtures::for_tag("v1.2.3");
+
+    let error = run_from(
+        update_cli_for("juggler", &config_path, &output, "v1.2.3", false),
+        directory.path(),
+        &fixtures,
+        &RealFileOps,
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("unsupported tool: juggler"));
+    assert_eq!(fixtures.calls.get(), 0);
+
+    let configured =
+        "schema_version = 1\n\n[tools.juggler]\ntag = \"v1.2.3\"\n\n[tools.juggler.sha256]\n";
+    let parsed: Config = toml::from_str(configured).unwrap();
+    // The configuration path wraps the cause in a "configured tool" context, so the
+    // alternate formatting is needed to see the root diagnostic.
+    let error = validate_config(&parsed).unwrap_err();
+    assert!(format!("{error:#}").contains("unsupported tool: juggler"));
 }

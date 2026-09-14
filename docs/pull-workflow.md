@@ -4,9 +4,9 @@ Use agents for release research and packaging changes. Use the Rust updater for 
 builder upstream uses does not matter: dist, custom CI, and other builders are compatible when their release archives
 meet the tool's documented contract.
 
-The live pull.toml is an opt-in list. Treeward is the first activated migration: its upstream release workflow no longer
-pushes a formula, and the live entry here owns `Formula/treeward.rb`. Other tools stay push-managed until their own
-coordinated switch. Do not copy an example into live configuration without coordinating that switch.
+The live pull.toml is an opt-in list. Treeward and saltybox are pull-managed: their upstream release workflows no longer
+push a formula, and the live entries here own their formulas. Other tools stay push-managed until their own coordinated
+switch. Do not copy an example into live configuration without coordinating that switch.
 
 ## Why this migration exists
 
