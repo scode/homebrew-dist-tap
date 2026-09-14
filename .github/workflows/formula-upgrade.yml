@@ -1,0 +1,171 @@
+# Installs and upgrades every pull-managed formula a pull request changes, on
+# each platform GitHub hosts natively, using the base branch's formula as the
+# upgrade baseline. This is the routine-update install check from
+# docs/pull-workflow.md, made unconditional for the platforms listed here.
+#
+# The test executes the candidate formula's Ruby and the upstream binary it
+# installs. The job therefore runs with read-only repository access and no
+# secrets; keep it that way. It does not replace the pinned-environment trial
+# recorded in docs/treeward-verification.md: runner images track current
+# Homebrew and OS versions rather than a fixed baseline.
+#
+# The workflow runs on every pull request, with no path filter, so that the
+# `formula-upgrade` status always exists and can be required for merge. A
+# path-filtered workflow never reports on pull requests outside its paths,
+# and a required status that never reports blocks the merge.
+name: Formula upgrade
+
+on:
+  pull_request:
+  # Manual runs test one tool on the dispatched ref, upgrading from the
+  # formula at any earlier commit. This exercises the workflow itself without
+  # a formula change and re-verifies an upgrade path on demand.
+  workflow_dispatch:
+    inputs:
+      tool:
+        description: Pull-managed tool whose formula on this ref is the candidate
+        required: true
+        type: string
+      base:
+        description: Commit or ref whose formula is the upgrade baseline
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: formula-upgrade-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Emits the tools to test and the baseline commit, so that a pull request
+  # touching no pull-managed tool costs nothing beyond this job. For a pull
+  # request the baseline is its recorded base, not the merge commit's parent,
+  # so that the diff is what the reviewer sees on the pull request page.
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      tools: ${{ steps.changed.outputs.tools }}
+      base: ${{ steps.changed.outputs.base }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: changed
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          DISPATCH_TOOL: ${{ inputs.tool }}
+          DISPATCH_BASE: ${{ inputs.base }}
+        run: |
+          if test -n "$DISPATCH_TOOL"; then
+            # A branch name resolves through origin/ because the checkout only
+            # has the dispatched ref as a local branch.
+            base=$(git rev-parse --verify --quiet "$DISPATCH_BASE^{commit}" ||
+              git rev-parse --verify "origin/$DISPATCH_BASE^{commit}") || exit 1
+            tools=$(python3 -c 'import json, sys; print(json.dumps([sys.argv[1]]))' "$DISPATCH_TOOL") || exit 1
+          else
+            base=$PR_BASE
+            tools=$(python3 scripts/changed-pull-managed-tools.py "$base") || exit 1
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "tools=$tools" >> "$GITHUB_OUTPUT"
+          echo "Tools to test: $tools (baseline $base)"
+
+  install-upgrade:
+    needs: detect
+    if: needs.detect.outputs.tools != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        tool: ${{ fromJSON(needs.detect.outputs.tools) }}
+        # Native runners only; an emulated result would be reported as native.
+        # Intel macOS is deliberately not covered.
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_ANALYTICS: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      HOMEBREW_NO_ENV_HINTS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # At the time of writing all three images ship Homebrew, with the Linux
+      # copy outside PATH. The installer fallback exists for an image that
+      # drops it and has not been exercised by a run of this workflow. The
+      # installer script is pinned by commit, but it clones Homebrew/brew at
+      # its current head; the fallback yields whatever Homebrew is then.
+      - name: Ensure Homebrew
+        run: |
+          if ! command -v brew >/dev/null 2>&1 && ! test -x /home/linuxbrew/.linuxbrew/bin/brew; then
+            echo "Homebrew is not preinstalled on this image; bootstrapping from the pinned installer"
+            installer=https://raw.githubusercontent.com/Homebrew/install/8949852f785a3bacaba2a979d0790337950b0a4a/install.sh
+            curl -fsSL -o "$RUNNER_TEMP/install-homebrew.sh" "$installer" || exit 1
+            NONINTERACTIVE=1 bash "$RUNNER_TEMP/install-homebrew.sh" || exit 1
+          fi
+          if test -x /home/linuxbrew/.linuxbrew/bin/brew; then
+            echo "/home/linuxbrew/.linuxbrew/bin" >> "$GITHUB_PATH"
+          fi
+      # The candidate's expected version and archive hash come from pull.toml
+      # inside the test script. The baseline's version is read from the base
+      # formula itself: it is the starting state, not the thing under test.
+      - name: Stage baseline formula
+        env:
+          TOOL: ${{ matrix.tool }}
+          BASE: ${{ needs.detect.outputs.base }}
+        run: |
+          stage="$RUNNER_TEMP/formulas"
+          mkdir -p "$stage" || exit 1
+          # An unresolvable baseline is an error; only a baseline that resolves
+          # but has no formula for this tool means a fresh install.
+          git cat-file -e "$BASE^{commit}" || { echo "baseline commit $BASE not found" >&2; exit 1; }
+          if git cat-file -e "$BASE:Formula/$TOOL.rb" 2>/dev/null; then
+            git show "$BASE:Formula/$TOOL.rb" > "$stage/old.rb" || exit 1
+            old_version=$(sed -n 's/^  version "\([^"]*\)"$/\1/p' "$stage/old.rb") || exit 1
+            newline=$(printf '\nx')
+            newline=${newline%x}
+            case "$old_version" in
+              "") echo "base formula declares no version" >&2; exit 1 ;;
+              *"$newline"*) echo "base formula declares more than one version" >&2; exit 1 ;;
+            esac
+            echo "OLD_VERSION=$old_version" >> "$GITHUB_ENV"
+            echo "Upgrade baseline: $TOOL $old_version"
+          else
+            echo "No base formula; fresh install of $TOOL only"
+          fi
+      - name: Install, upgrade, and test
+        env:
+          TOOL: ${{ matrix.tool }}
+        run: |
+          stage="$RUNNER_TEMP/formulas"
+          if test -n "${OLD_VERSION-}"; then
+            bash scripts/formula-upgrade-test.sh "$TOOL" "Formula/$TOOL.rb" pull.toml "$stage/old.rb" "$OLD_VERSION"
+          else
+            bash scripts/formula-upgrade-test.sh "$TOOL" "Formula/$TOOL.rb" pull.toml
+          fi
+
+  # Single status for branch protection. Passes when nothing needed testing
+  # and fails when any platform failed, so a skipped matrix is not mistaken
+  # for a green one and a red one cannot hide behind a matrix job name.
+  formula-upgrade:
+    needs: [detect, install-upgrade]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          DETECT: ${{ needs.detect.result }}
+          TEST: ${{ needs.install-upgrade.result }}
+        run: |
+          test "$DETECT" = success || exit 1
+          case "$TEST" in
+            success | skipped) exit 0 ;;
+            *) exit 1 ;;
+          esac

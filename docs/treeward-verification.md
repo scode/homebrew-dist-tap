@@ -37,7 +37,8 @@ digest below). The v0.3.3 Linux x86-64 archive SHA-256 was
 | `brew upgrade` from pushed v0.3.2 to v0.3.3, identity, functional test | Passed |
 
 To repeat it, place the candidate formula at `new/treeward.rb` and the previously committed formula at `old/treeward.rb`
-in the inputs directory, then run the container recipe below with `0.3.3 0.3.2` as the version arguments.
+in the inputs directory together with the candidate's `pull.toml` as `new.toml`, then run the container recipe below
+with `/inputs/new.toml` in place of the config argument and `0.3.2` as the baseline version.
 
 ## Tooling trial, 2026-09-08
 
@@ -103,10 +104,12 @@ these mutable upstream URLs.
 
 ### Repeat the trial
 
-Use a checkout of the documented tooling commit to generate inputs. The acceptance script takes the inputs directory and
-the two expected versions as arguments; it is fixed to treeward on Linux x86-64 and is an example for reproducing this
-observation, not a general platform runner. For other tools, use the parameterized recipe in
-[the maintenance guide](pull-workflow.md).
+Use a checkout of the documented tooling commit to generate inputs. The acceptance script is the same one the `Formula
+upgrade` workflow runs on pull requests; it takes the tool name, the candidate formula, the pull configuration that
+records the candidate's tag and hashes, and optionally the baseline formula and its version. The two trials recorded
+above ran an earlier treeward-specific script with the same install, identity, and upgrade steps; the shared script
+reproduced the migration candidate's results on the same image before replacing it. The container recipe below pins the
+Linux x86-64 environment the trials used, which the workflow's runner images do not.
 
 From the tooling checkout, use an empty scratch directory outside the tap:
 
@@ -122,10 +125,10 @@ sha256sum "$trial/new/treeward.rb" "$trial/old/treeward.rb" || exit 1
 ```
 
 Compare those formula digests with the table above. On a native Linux x86-64 host with Docker, supply the absolute path
-to [the acceptance script](../examples/test-treeward-linux.sh), then run:
+to [the acceptance script](../scripts/formula-upgrade-test.sh), then run:
 
 ```bash
-acceptance_script=/path/to/test-treeward-linux.sh
+acceptance_script=/path/to/scripts/formula-upgrade-test.sh
 uname -m || exit 1
 docker run --rm --network bridge \
   -e HOMEBREW_NO_AUTO_UPDATE=1 \
@@ -134,7 +137,7 @@ docker run --rm --network bridge \
   --mount "type=bind,src=$trial,dst=/inputs,readonly" \
   --mount "type=bind,src=$acceptance_script,dst=/acceptance.sh,readonly" \
   ghcr.io/homebrew/ubuntu24.04@sha256:613f2f524c4d1fb8fe37dbe7a5581392c89e7865bac725bab0d8e24309ae6d7c \
-  bash /acceptance.sh /inputs 0.3.2 0.3.1
+  bash /acceptance.sh treeward /inputs/new/treeward.rb /inputs/new.toml /inputs/old/treeward.rb 0.3.1
 ```
 
 The script prints the environment, installed versions, executable digests, formula tests, and a final PASS marker. It
