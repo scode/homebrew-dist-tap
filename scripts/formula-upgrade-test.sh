@@ -97,9 +97,9 @@ read_config() {
 # bytes with the checksum-verified cached archive closes the gap left by tools
 # that do not report their version, and comparing that archive with the
 # recorded hash ties the installation to the release the configuration
-# accepted. The archive layout `TOOL-TRIPLE/TOOL` is treeward's documented
-# contract; a tool with a different layout needs its own case here rather than
-# a weakened check.
+# accepted. The archive layout `TOOL-TRIPLE/TOOL` is the shared contract in
+# SPEC.md that every pull-managed tool publishes; a tool with a different
+# layout needs its own case here rather than a weakened check.
 #
 # $1 expected version; $2 expected archive SHA-256, or empty to check the
 # archive only against the formula's own declaration; $3 `require-test` or

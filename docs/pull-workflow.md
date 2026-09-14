@@ -4,9 +4,9 @@ Use agents for release research and packaging changes. Use the Rust updater for 
 builder upstream uses does not matter: dist, custom CI, and other builders are compatible when their release archives
 meet the tool's documented contract.
 
-The live pull.toml is an opt-in list. Treeward is the first activated migration: its upstream release workflow no longer
-pushes a formula, and the live entry here owns `Formula/treeward.rb`. Other tools stay push-managed until their own
-coordinated switch. Do not copy an example into live configuration without coordinating that switch.
+The live pull.toml is an opt-in list. Treeward and saltybox are pull-managed: their upstream release workflows no longer
+push a formula, and the live entries here own their formulas. Other tools stay push-managed until their own coordinated
+switch. Do not copy an example into live configuration without coordinating that switch.
 
 ## Why this migration exists
 
@@ -70,8 +70,8 @@ records the calculated hashes. Hashes establish which downloaded bytes the chang
 upstream build is trustworthy. If the same recorded release starts returning different bytes, stop and investigate. Do
 not delete hashes or change tags merely to make an integrity error disappear.
 
-Review the config and formula together. Look for the intended tag and four asset hashes in the treeward case, URLs under
-the intended repository and release, preserved target coverage, and no unrelated file changes. Regenerate and check the
+Review the config and formula together. Look for the intended tag and the tool's four asset hashes, URLs under the
+intended repository and release, preserved target coverage, and no unrelated file changes. Regenerate and check the
 candidate to confirm that config and generated output agree. Commit and PR creation remain agent operations, outside the
 deterministic tool. Coordinate a release update through the normal human review and merge process.
 
@@ -107,8 +107,10 @@ and OS versions; they are not a pinned baseline.
 The status is evidence only for a PR that leaves `.github/workflows/formula-upgrade.yml` and `scripts/` untouched: the
 workflow runs the PR's own copy of those files, so a PR that changes them can make itself green. Review such changes as
 changes to the gate, not as routine bumps. The repository currently has no branch protection requiring this status; the
-owner merges by hand, and making it required is a separate decision. The verification report is updated when a tool is
-onboarded or its migration is activated, not for every bump; the PR and its workflow run carry the routine evidence.
+owner merges by hand, and making it required is a separate decision. Each tool gets a verification record in `docs/`
+when it is onboarded or its migration is activated, naming the candidate, the recorded hashes, and the platforms that
+actually executed it; since the workflow exists, that record can cite the PR's workflow run rather than repeat a manual
+trial. Routine bumps do not update the record; the PR and its workflow run carry the evidence.
 
 ## Test an unmerged candidate
 

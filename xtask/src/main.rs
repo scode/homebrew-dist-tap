@@ -31,6 +31,71 @@ const MAX_COMPRESSED: u64 = 64 * 1024 * 1024;
 const MAX_EXPANDED: u64 = 256 * 1024 * 1024;
 const MAX_ENTRIES: usize = 1024;
 
+/// Everything the updater knows about one tool: where its releases live and
+/// what the rendered formula says about it.
+///
+/// Both registered tools publish with dist, whose archive layout is identical
+/// for them (`<name>-<target>/{README.md,CHANGELOG.md,LICENSE,<name>}`), so
+/// the archive contract is shared and only these values differ. A tool whose
+/// upstream changes that layout needs its own validation path, not a new
+/// field here: this is a table of names, not a packaging framework.
+struct ToolSpec {
+    /// Formula file name, binary name, archive prefix, and config key.
+    name: &'static str,
+    /// GitHub `owner/repo` that publishes the releases.
+    repository: &'static str,
+    /// Ruby class name Homebrew derives from the formula file name.
+    class_name: &'static str,
+    description: &'static str,
+    /// Ruby expression for the formula's `license` line.
+    license: &'static str,
+    /// Body of the formula's `test do` block, indented for the template, that
+    /// demonstrates useful behavior rather than merely reporting a version.
+    test_body: &'static str,
+}
+
+const TREEWARD: ToolSpec = ToolSpec {
+    name: "treeward",
+    repository: "scode/treeward",
+    class_name: "Treeward",
+    description: "A command line tool for checksumming and verifying trees of files",
+    license: r#"any_of: ["MIT", "Apache-2.0"]"#,
+    test_body: r##"    (testpath/"content").write "original"
+    system bin/"treeward", "init"
+    system bin/"treeward", "verify"
+    File.write(testpath/"content", "changed")
+    assert_match "Verification failed", shell_output("#{bin}/treeward verify 2>&1", 1)"##,
+};
+
+// The passphrase goes through `--passphrase-stdin` because the default is an
+// interactive terminal prompt, which `brew test` cannot answer. A round trip
+// proves encryption works; the wrong-passphrase decrypt proves the check is
+// real rather than a pass-through.
+const SALTYBOX: ToolSpec = ToolSpec {
+    name: "saltybox",
+    repository: "scode/saltybox",
+    class_name: "Saltybox",
+    description: "Passphrase-based file encryption tool",
+    license: r#"any_of: ["Apache-2.0", "MIT"]"#,
+    test_body: r##"    (testpath/"secret.txt").write "top secret"
+    pipe_output("#{bin}/saltybox --passphrase-stdin encrypt -i secret.txt -o secret.saltybox", "correct horse", 0)
+    pipe_output("#{bin}/saltybox --passphrase-stdin decrypt -i secret.saltybox -o roundtrip.txt", "correct horse", 0)
+    assert_equal "top secret", (testpath/"roundtrip.txt").read
+    wrong = pipe_output("#{bin}/saltybox --passphrase-stdin decrypt -i secret.saltybox -o wrong.txt 2>&1", "wrong", 1)
+    assert_match "failed to decrypt", wrong
+    refute_path_exists testpath/"wrong.txt""##,
+};
+
+const TOOLS: [&ToolSpec; 2] = [&SALTYBOX, &TREEWARD];
+
+/// Resolve a name from the CLI or configuration to its registered contract.
+fn tool_spec(name: &str) -> Result<&'static ToolSpec> {
+    TOOLS
+        .into_iter()
+        .find(|spec| spec.name == name)
+        .ok_or_else(|| anyhow!("unsupported tool: {name}"))
+}
+
 /// Update or render the small set of formulas that this tap explicitly opts in.
 #[derive(Parser)]
 #[command(name = "cargo xtask", version, disable_help_subcommand = true)]
@@ -354,10 +419,7 @@ fn validate_config(config: &Config) -> Result<()> {
 
 /// Limit both configuration keys and CLI selection to registered implementations.
 fn validate_tool_name(name: &str) -> Result<()> {
-    if name != "treeward" {
-        bail!("unsupported tool: {name}");
-    }
-    Ok(())
+    tool_spec(name).map(|_| ())
 }
 
 /// Accept SemVer only after excluding characters unsafe in URLs and Ruby literals.
@@ -385,11 +447,12 @@ fn update(
     fetcher: &dyn Fetcher,
     files: &dyn FileOps,
 ) -> Result<()> {
+    let spec = tool_spec(tool_name)?;
     let (formula_path, formula_original) =
         prepare_output_set(config_path, output_dir, [tool_name])?
             .pop()
             .expect("one requested tool");
-    let hashes = acquire_treeward(tag, fetcher)?;
+    let hashes = acquire(spec, tag, fetcher)?;
     if let Some(previous) = config.tools.get(tool_name)
         && previous.tag == tag
         && previous.sha256 != hashes
@@ -404,7 +467,7 @@ fn update(
         },
     );
     let config_text = toml::to_string_pretty(config).context("serialize configuration")?;
-    let formula_text = render_treeward(config.tools.get(tool_name).expect("inserted tool"))?;
+    let formula_text = render(spec, config.tools.get(tool_name).expect("inserted tool"))?;
     let outputs = vec![
         output(config_path, config_text, "configuration")?,
         Output {
@@ -439,13 +502,14 @@ fn regenerate(
     )?;
     let mut outputs = Vec::with_capacity(paths.len());
     for ((name, tool), (path, original)) in config.tools.iter().zip(paths) {
-        let actual = acquire_treeward(&tool.tag, fetcher)?;
+        let spec = tool_spec(name)?;
+        let actual = acquire(spec, &tool.tag, fetcher)?;
         if actual != tool.sha256 {
             bail!("recorded hashes do not match downloaded {name} assets");
         }
         outputs.push(Output {
             path,
-            text: render_treeward(tool)?,
+            text: render(spec, tool)?,
             original,
         });
     }
@@ -530,25 +594,28 @@ fn output(path: &Path, text: String, label: &str) -> Result<Output> {
 }
 
 /// Download and validate the complete platform set so partial releases never publish.
-fn acquire_treeward(tag: &str, fetcher: &dyn Fetcher) -> Result<BTreeMap<String, String>> {
+fn acquire(spec: &ToolSpec, tag: &str, fetcher: &dyn Fetcher) -> Result<BTreeMap<String, String>> {
+    let name = spec.name;
     let mut hashes = BTreeMap::new();
     for target in TARGETS {
-        let url = treeward_url(tag, target);
+        let url = release_url(spec, tag, target);
         debug!(%url, %tag, %target, "downloading expected asset");
         let bytes = fetcher
             .get(&url)
-            .with_context(|| format!("download treeward {tag} target {target} from {url}"))?;
-        validate_treeward_archive(&bytes, target).with_context(|| {
-            format!("validate treeward {tag} target {target} archive from {url}")
-        })?;
+            .with_context(|| format!("download {name} {tag} target {target} from {url}"))?;
+        validate_archive(spec, &bytes, target)
+            .with_context(|| format!("validate {name} {tag} target {target} archive from {url}"))?;
         hashes.insert(target.to_owned(), hex_digest(&bytes));
     }
     Ok(hashes)
 }
 
-/// Construct the only upstream location accepted for a treeward artifact.
-fn treeward_url(tag: &str, target: &str) -> String {
-    format!("https://github.com/scode/treeward/releases/download/{tag}/treeward-{target}.tar.xz")
+/// Construct the only upstream location accepted for a tool's release artifact.
+fn release_url(spec: &ToolSpec, tag: &str, target: &str) -> String {
+    format!(
+        "https://github.com/{}/releases/download/{tag}/{}-{target}.tar.xz",
+        spec.repository, spec.name
+    )
 }
 
 /// Render compressed-byte identity in the schema's canonical lowercase form.
@@ -573,12 +640,13 @@ const ARCHIVE_LIMITS: ArchiveLimits = ArchiveLimits {
 };
 
 /// Validate the exact release layout and the complete xz and tar containers.
-fn validate_treeward_archive(bytes: &[u8], target: &str) -> Result<()> {
-    validate_treeward_archive_with_limits(bytes, target, ARCHIVE_LIMITS)
+fn validate_archive(spec: &ToolSpec, bytes: &[u8], target: &str) -> Result<()> {
+    validate_archive_with_limits(spec, bytes, target, ARCHIVE_LIMITS)
 }
 
 /// Keep test bounds small while production uses the documented resource limits.
-fn validate_treeward_archive_with_limits(
+fn validate_archive_with_limits(
+    spec: &ToolSpec,
     bytes: &[u8],
     target: &str,
     limits: ArchiveLimits,
@@ -611,13 +679,14 @@ fn validate_treeward_archive_with_limits(
     }
 
     let mut archive = Archive::new(Cursor::new(expanded.as_slice()));
-    let root = format!("treeward-{target}");
+    let root = format!("{}-{target}", spec.name);
+    let binary = format!("{root}/{}", spec.name);
     let expected: BTreeSet<String> = [
         root.clone(),
         format!("{root}/README.md"),
         format!("{root}/CHANGELOG.md"),
         format!("{root}/LICENSE"),
-        format!("{root}/treeward"),
+        binary.clone(),
     ]
     .into_iter()
     .collect();
@@ -662,7 +731,7 @@ fn validate_treeward_archive_with_limits(
             }
         } else if kind != EntryType::Regular {
             bail!("archive contains a non-regular file: {text}");
-        } else if text.ends_with("/treeward") {
+        } else if text == binary {
             binary_executable = entry.header().mode().context("read executable mode")? & 0o111 != 0;
         }
         io::copy(&mut entry, &mut io::sink()).context("consume archive entry")?;
@@ -681,18 +750,18 @@ fn validate_treeward_archive_with_limits(
 }
 
 /// Compose Ruby from validated local values rather than upstream formula code.
-fn render_treeward(tool: &Tool) -> Result<String> {
+fn render(spec: &ToolSpec, tool: &Tool) -> Result<String> {
     let version = tool
         .tag
         .strip_prefix('v')
         .ok_or_else(|| anyhow!("invalid tag"))?;
     let hash = |target| tool.sha256.get(target).expect("validated target set");
     Ok(format!(
-        r##"class Treeward < Formula
-  desc "A command line tool for checksumming and verifying trees of files"
-  homepage "https://github.com/scode/treeward"
+        r##"class {class_name} < Formula
+  desc "{description}"
+  homepage "https://github.com/{repository}"
   version "{version}"
-  license any_of: ["MIT", "Apache-2.0"]
+  license {license}
 
   on_macos do
     on_arm do
@@ -719,26 +788,28 @@ fn render_treeward(tool: &Tool) -> Result<String> {
   end
 
   def install
-    bin.install "treeward"
+    bin.install "{name}"
     doc.install "README.md", "CHANGELOG.md", "LICENSE"
   end
 
   test do
-    (testpath/"content").write "original"
-    system bin/"treeward", "init"
-    system bin/"treeward", "verify"
-    File.write(testpath/"content", "changed")
-    assert_match "Verification failed", shell_output("#{{bin}}/treeward verify 2>&1", 1)
+{test_body}
   end
 end
 "##,
-        aa_url = treeward_url(&tool.tag, TARGETS[0]),
+        class_name = spec.class_name,
+        description = spec.description,
+        repository = spec.repository,
+        license = spec.license,
+        name = spec.name,
+        test_body = spec.test_body,
+        aa_url = release_url(spec, &tool.tag, TARGETS[0]),
         aa_hash = hash(TARGETS[0]),
-        al_url = treeward_url(&tool.tag, TARGETS[1]),
+        al_url = release_url(spec, &tool.tag, TARGETS[1]),
         al_hash = hash(TARGETS[1]),
-        xa_url = treeward_url(&tool.tag, TARGETS[2]),
+        xa_url = release_url(spec, &tool.tag, TARGETS[2]),
         xa_hash = hash(TARGETS[2]),
-        xl_url = treeward_url(&tool.tag, TARGETS[3]),
+        xl_url = release_url(spec, &tool.tag, TARGETS[3]),
         xl_hash = hash(TARGETS[3]),
     ))
 }
