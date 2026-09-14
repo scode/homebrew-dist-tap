@@ -41,6 +41,7 @@ Run the same commands as the dedicated CI jobs:
 - `cargo clippy --locked --workspace --all-targets --all-features -- -D warnings`
 - `cargo test --locked --workspace --all-targets --all-features`
 - `dprint check`
+- `python3 -m unittest discover -s scripts`
 
 Use stable Rust. Install dprint separately. Updating formatter plugins requires checksum pins; verify a fresh download
 after changing them. Exclude lore from Markdown formatting and linting.

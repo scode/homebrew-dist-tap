@@ -106,8 +106,10 @@ these mutable upstream URLs.
 
 Use a checkout of the documented tooling commit to generate inputs. The acceptance script is the same one the `Formula
 upgrade` workflow runs on pull requests; it takes the tool name, the candidate formula, the pull configuration that
-records the candidate's tag and hashes, and optionally the baseline formula and its version. The container recipe below
-pins the Linux x86-64 environment the trials used, which the workflow's runner images do not.
+records the candidate's tag and hashes, and optionally the baseline formula and its version. The two trials recorded
+above ran an earlier treeward-specific script with the same install, identity, and upgrade steps; the shared script
+reproduced the migration candidate's results on the same image before replacing it. The container recipe below pins the
+Linux x86-64 environment the trials used, which the workflow's runner images do not.
 
 From the tooling checkout, use an empty scratch directory outside the tap:
 

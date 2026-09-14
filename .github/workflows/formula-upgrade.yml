@@ -75,7 +75,7 @@ jobs:
           echo "tools=$tools" >> "$GITHUB_OUTPUT"
           echo "Tools to test: $tools (baseline $base)"
 
-  test:
+  install-upgrade:
     needs: detect
     if: needs.detect.outputs.tools != '[]'
     strategy:
@@ -99,14 +99,16 @@ jobs:
           fetch-depth: 0
       # At the time of writing all three images ship Homebrew, with the Linux
       # copy outside PATH. The installer fallback exists for an image that
-      # drops it; it is pinned to a reviewed revision of Homebrew's installer
-      # and has not been exercised by a run of this workflow.
+      # drops it and has not been exercised by a run of this workflow. The
+      # installer script is pinned by commit, but it clones Homebrew/brew at
+      # its current head; the fallback yields whatever Homebrew is then.
       - name: Ensure Homebrew
         run: |
           if ! command -v brew >/dev/null 2>&1 && ! test -x /home/linuxbrew/.linuxbrew/bin/brew; then
             echo "Homebrew is not preinstalled on this image; bootstrapping from the pinned installer"
             installer=https://raw.githubusercontent.com/Homebrew/install/8949852f785a3bacaba2a979d0790337950b0a4a/install.sh
-            NONINTERACTIVE=1 bash -c "$(curl -fsSL "$installer")" || exit 1
+            curl -fsSL -o "$RUNNER_TEMP/install-homebrew.sh" "$installer" || exit 1
+            NONINTERACTIVE=1 bash "$RUNNER_TEMP/install-homebrew.sh" || exit 1
           fi
           if test -x /home/linuxbrew/.linuxbrew/bin/brew; then
             echo "/home/linuxbrew/.linuxbrew/bin" >> "$GITHUB_PATH"
@@ -121,10 +123,18 @@ jobs:
         run: |
           stage="$RUNNER_TEMP/formulas"
           mkdir -p "$stage" || exit 1
+          # An unresolvable baseline is an error; only a baseline that resolves
+          # but has no formula for this tool means a fresh install.
+          git cat-file -e "$BASE^{commit}" || { echo "baseline commit $BASE not found" >&2; exit 1; }
           if git cat-file -e "$BASE:Formula/$TOOL.rb" 2>/dev/null; then
             git show "$BASE:Formula/$TOOL.rb" > "$stage/old.rb" || exit 1
             old_version=$(sed -n 's/^  version "\([^"]*\)"$/\1/p' "$stage/old.rb") || exit 1
-            test -n "$old_version" || { echo "base formula declares no version" >&2; exit 1; }
+            newline=$(printf '\nx')
+            newline=${newline%x}
+            case "$old_version" in
+              "") echo "base formula declares no version" >&2; exit 1 ;;
+              *"$newline"*) echo "base formula declares more than one version" >&2; exit 1 ;;
+            esac
             echo "OLD_VERSION=$old_version" >> "$GITHUB_ENV"
             echo "Upgrade baseline: $TOOL $old_version"
           else
@@ -145,14 +155,14 @@ jobs:
   # and fails when any platform failed, so a skipped matrix is not mistaken
   # for a green one and a red one cannot hide behind a matrix job name.
   formula-upgrade:
-    needs: [detect, test]
+    needs: [detect, install-upgrade]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - env:
           DETECT: ${{ needs.detect.result }}
-          TEST: ${{ needs.test.result }}
+          TEST: ${{ needs.install-upgrade.result }}
         run: |
           test "$DETECT" = success || exit 1
           case "$TEST" in

@@ -91,18 +91,24 @@ exactly what a broken or replaced archive would change, and the formula is what 
    x86-64, Linux ARM64, and macOS ARM64 runners. After each install it checks the keg version, compares the installed
    executable with the one inside the checksum-verified archive, and runs the formula's test; the candidate's archive is
    also compared with the hash recorded in `pull.toml`. Its `formula-upgrade` status must be green. It uses
-   `scripts/formula-upgrade-test.sh`, which the container recipe in the verification report also uses; run that locally
-   when a runner is unavailable or a failure needs a pinned environment to reproduce.
+   `scripts/formula-upgrade-test.sh`, which the container recipe in the verification report also uses; run that recipe
+   when a runner is unavailable or a failure needs a pinned environment to reproduce. The script is not for a
+   workstation's own Homebrew: it refuses to run where the tool is installed and leaves its test tap behind.
 5. State in the PR which platforms actually ran the install test, including any the workflow could not cover.
 
 The candidate's expected version and archive hash come from `pull.toml`, so a formula whose `url`, `sha256`, or
 `version` points at a different release than the config records fails rather than verifying itself; a config-only change
-is tested against the unchanged formula for the same reason. The baseline is only checked against its own archive, and
-`brew test` is skipped for a baseline that defines no test block (a formula upstream pushed); the candidate must define
-one. A change that keeps the same version cannot exercise `brew upgrade`, and the workflow says so instead of claiming
-an upgrade. Runner images track current Homebrew and OS versions; they are not a pinned baseline. The verification
-report is updated when a tool is onboarded or its migration is activated, not for every bump; the PR and its workflow
-run carry the routine evidence.
+is tested against the unchanged formula for the same reason, and a `pull.toml` entry whose formula is missing fails
+outright. The baseline is only checked against its own archive, and `brew test` is skipped for a baseline that defines
+no test block (a formula upstream pushed); the candidate must define one. A change that keeps the same version cannot
+exercise `brew upgrade`, and the workflow says so instead of claiming an upgrade. Runner images track current Homebrew
+and OS versions; they are not a pinned baseline.
+
+The status is evidence only for a PR that leaves `.github/workflows/formula-upgrade.yml` and `scripts/` untouched: the
+workflow runs the PR's own copy of those files, so a PR that changes them can make itself green. Review such changes as
+changes to the gate, not as routine bumps. The repository currently has no branch protection requiring this status; the
+owner merges by hand, and making it required is a separate decision. The verification report is updated when a tool is
+onboarded or its migration is activated, not for every bump; the PR and its workflow run carry the routine evidence.
 
 ## Test an unmerged candidate
 

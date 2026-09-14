@@ -80,3 +80,13 @@ jobs:
         with:
           persist-credentials: false
       - uses: dprint/check@7dc032d8874778fc024f6f9b4a7e6d896782c330 # v2.5
+
+  # The formula upgrade workflow's detection script decides whether that
+  # workflow runs at all, so its behaviour is tested here on every change.
+  scripts:
+    runs-on: ubicloud
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s scripts
