@@ -1,65 +1,61 @@
 class Juggler < Formula
-  desc "TODO juggler"
+  desc "Terminal TODO manager with TOML storage and Google Tasks sync"
   homepage "https://github.com/scode/juggler"
-  version "0.2.6"
-  if OS.mac?
-    if Hardware::CPU.arm?
-      url "https://github.com/scode/juggler/releases/download/v0.2.6/juggler-aarch64-apple-darwin.tar.xz"
-      sha256 "e6252cbe031f530400c3bd026e50e8516d382105bc44b62b1dcc244580d27000"
-    end
-    if Hardware::CPU.intel?
-      url "https://github.com/scode/juggler/releases/download/v0.2.6/juggler-x86_64-apple-darwin.tar.xz"
-      sha256 "6bac328615c4c0ef12681c556a1143671b6dc2ad2c0130e6f82aa5f5505b0b90"
-    end
-  end
-  if OS.linux?
-    if Hardware::CPU.arm?
-      url "https://github.com/scode/juggler/releases/download/v0.2.6/juggler-aarch64-unknown-linux-gnu.tar.xz"
-      sha256 "a56fa02764c21d9362caab08fd34dfa69de2180013e72ac63068003dad7deb74"
-    end
-    if Hardware::CPU.intel?
-      url "https://github.com/scode/juggler/releases/download/v0.2.6/juggler-x86_64-unknown-linux-gnu.tar.xz"
-      sha256 "b02e40e4f3596b508d805cadca66b00af2b54a6c4dd07ccc6703a8070da38fd5"
-    end
-  end
+  version "0.2.7"
   license "MIT"
 
-  BINARY_ALIASES = {
-    "aarch64-apple-darwin":      {},
-    "aarch64-unknown-linux-gnu": {},
-    "x86_64-apple-darwin":       {},
-    "x86_64-unknown-linux-gnu":  {},
-  }.freeze
+  on_macos do
+    on_arm do
+      url "https://github.com/scode/juggler/releases/download/v0.2.7/juggler-aarch64-apple-darwin.tar.xz"
+      sha256 "618599d491c9cac5e4edbbbe08dee5f59fbec9465080f4a16ecb424ce5843d19"
+    end
 
-  def target_triple
-    cpu = Hardware::CPU.arm? ? "aarch64" : "x86_64"
-    os = OS.mac? ? "apple-darwin" : "unknown-linux-gnu"
-
-    "#{cpu}-#{os}"
+    on_intel do
+      url "https://github.com/scode/juggler/releases/download/v0.2.7/juggler-x86_64-apple-darwin.tar.xz"
+      sha256 "6b0495d0f4d2af5673cf478cf7d1127093cbd088cb299064ecbe1fee3ed78878"
+    end
   end
 
-  def install_binary_aliases!
-    BINARY_ALIASES[target_triple.to_sym].each do |source, dests|
-      dests.each do |dest|
-        bin.install_symlink bin/source.to_s => dest
-      end
+  on_linux do
+    on_arm do
+      url "https://github.com/scode/juggler/releases/download/v0.2.7/juggler-aarch64-unknown-linux-gnu.tar.xz"
+      sha256 "6ce00d1ebcd3fe130613c1225bdd77af3ac84f29a54ffa66839d1bbd2640759c"
+    end
+
+    on_intel do
+      url "https://github.com/scode/juggler/releases/download/v0.2.7/juggler-x86_64-unknown-linux-gnu.tar.xz"
+      sha256 "97fde94fa6253059741a42a79816f757446913ea678090d9fd8bb0e218068c8c"
     end
   end
 
   def install
-    bin.install "juggler" if OS.mac? && Hardware::CPU.arm?
-    bin.install "juggler" if OS.mac? && Hardware::CPU.intel?
-    bin.install "juggler" if OS.linux? && Hardware::CPU.arm?
-    bin.install "juggler" if OS.linux? && Hardware::CPU.intel?
+    bin.install "juggler"
+    doc.install "README.md", "CHANGELOG.md", "LICENSE"
+  end
 
-    install_binary_aliases!
+  test do
+    state = testpath/"state"
+    state.mkpath
+    store = state/"TODOs.toml"
+    store.write <<~TOML
+      [metadata]
+      format_version = 2
+      juggler_edition = 1
 
-    # Homebrew will automatically install these, so we don't need to do that
-    doc_files = Dir["README.*", "readme.*", "LICENSE", "LICENSE.*", "CHANGELOG.*"]
-    leftover_contents = Dir["*"] - doc_files
+      [todos.T1]
+      title = "Homebrew fixture"
+      done = false
+    TOML
 
-    # Install any leftover files in pkgshare; these are probably config or
-    # sample files.
-    pkgshare.install(*leftover_contents) unless leftover_contents.empty?
+    command = "'#{bin}/juggler' --juggler-dir '#{state}' " \
+              "--google-oauth-client-id ' ' --google-oauth-client-secret ' ' " \
+              "sync google-tasks --dry-run 2>&1"
+    assert_match "unsupported metadata.format_version=2 (expected 1)", shell_output(command, 1)
+
+    File.write(store, store.read.sub("format_version = 2", "format_version = 1"))
+    original = store.read
+    assert_match "Missing Google OAuth client id", shell_output(command, 1)
+    assert_equal original, store.read
+    assert_equal ["TODOs.toml"], state.children.map { |path| path.basename.to_s }.sort
   end
 end

@@ -1,5 +1,14 @@
 schema_version = 1
 
+[tools.juggler]
+tag = "v0.2.7"
+
+[tools.juggler.sha256]
+aarch64-apple-darwin = "618599d491c9cac5e4edbbbe08dee5f59fbec9465080f4a16ecb424ce5843d19"
+aarch64-unknown-linux-gnu = "6ce00d1ebcd3fe130613c1225bdd77af3ac84f29a54ffa66839d1bbd2640759c"
+x86_64-apple-darwin = "6b0495d0f4d2af5673cf478cf7d1127093cbd088cb299064ecbe1fee3ed78878"
+x86_64-unknown-linux-gnu = "97fde94fa6253059741a42a79816f757446913ea678090d9fd8bb0e218068c8c"
+
 [tools.saltybox]
 tag = "v6.0.0"
 

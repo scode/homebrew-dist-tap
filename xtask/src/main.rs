@@ -34,7 +34,7 @@ const MAX_ENTRIES: usize = 1024;
 /// Everything the updater knows about one tool: where its releases live and
 /// what the rendered formula says about it.
 ///
-/// Both registered tools publish with dist, whose archive layout is identical
+/// All registered tools publish with dist, whose archive layout is identical
 /// for them (`<name>-<target>/{README.md,CHANGELOG.md,LICENSE,<name>}`), so
 /// the archive contract is shared and only these values differ. A tool whose
 /// upstream changes that layout needs its own validation path, not a new
@@ -86,7 +86,43 @@ const SALTYBOX: ToolSpec = ToolSpec {
     refute_path_exists testpath/"wrong.txt""##,
 };
 
-const TOOLS: [&ToolSpec; 2] = [&SALTYBOX, &TREEWARD];
+// Juggler's TUI needs a terminal and its sync path needs OAuth credentials.
+// Exercise store validation and the credential precondition instead: an invalid
+// store must fail before authentication, and a valid one must remain untouched.
+// Blank explicit flags override inherited credentials before any keychain or
+// network access, so this test needs neither a desktop session nor an account.
+const JUGGLER: ToolSpec = ToolSpec {
+    name: "juggler",
+    repository: "scode/juggler",
+    class_name: "Juggler",
+    description: "Terminal TODO manager with TOML storage and Google Tasks sync",
+    license: r#""MIT""#,
+    test_body: r##"    state = testpath/"state"
+    state.mkpath
+    store = state/"TODOs.toml"
+    store.write <<~TOML
+      [metadata]
+      format_version = 2
+      juggler_edition = 1
+
+      [todos.T1]
+      title = "Homebrew fixture"
+      done = false
+    TOML
+
+    command = "'#{bin}/juggler' --juggler-dir '#{state}' " \
+              "--google-oauth-client-id ' ' --google-oauth-client-secret ' ' " \
+              "sync google-tasks --dry-run 2>&1"
+    assert_match "unsupported metadata.format_version=2 (expected 1)", shell_output(command, 1)
+
+    File.write(store, store.read.sub("format_version = 2", "format_version = 1"))
+    original = store.read
+    assert_match "Missing Google OAuth client id", shell_output(command, 1)
+    assert_equal original, store.read
+    assert_equal ["TODOs.toml"], state.children.map { |path| path.basename.to_s }.sort"##,
+};
+
+const TOOLS: [&ToolSpec; 3] = [&JUGGLER, &SALTYBOX, &TREEWARD];
 
 /// Resolve a name from the CLI or configuration to its registered contract.
 fn tool_spec(name: &str) -> Result<&'static ToolSpec> {
