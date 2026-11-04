@@ -1157,29 +1157,158 @@ fn saltybox_update_renders_its_own_formula() {
 }
 
 #[test]
+/// Preparing juggler must preserve existing selections and neighboring push-managed
+/// formulas. Dry-run, update, and checked regeneration use the same four-asset contract.
+fn juggler_update_is_isolated_and_reproducible() {
+    let directory = tempdir().unwrap();
+    let config_path = directory.path().join("pull.toml");
+    let output = directory.path().join("Formula");
+    let fixtures = Fixtures::for_tools(&[(&JUGGLER, "v0.2.6"), (&SALTYBOX, "v5.0.1")]);
+    let saltybox = selected_for(&SALTYBOX, "v5.0.1", &fixtures);
+    write_config(&config_path, &config_of([("saltybox", saltybox.clone())]));
+    fs::create_dir(&output).unwrap();
+    fs::write(output.join("leiter.rb"), "push-managed formula").unwrap();
+    fs::write(output.join("saltybox.rb"), "existing saltybox formula").unwrap();
+    let original = fs::read(&config_path).unwrap();
+
+    run_from(
+        update_cli_for("juggler", &config_path, &output, "v0.2.6", true),
+        directory.path(),
+        &fixtures,
+        &RealFileOps,
+    )
+    .unwrap();
+    assert_eq!(fs::read(&config_path).unwrap(), original);
+    assert!(!output.join("juggler.rb").exists());
+
+    run_from(
+        update_cli_for("juggler", &config_path, &output, "v0.2.6", false),
+        directory.path(),
+        &fixtures,
+        &RealFileOps,
+    )
+    .unwrap();
+    assert_eq!(fixtures.calls.get(), 8);
+    let expected = config_of([
+        ("juggler", selected_for(&JUGGLER, "v0.2.6", &fixtures)),
+        ("saltybox", saltybox),
+    ]);
+    assert_eq!(
+        fs::read_to_string(&config_path).unwrap(),
+        toml::to_string_pretty(&expected).unwrap()
+    );
+    assert_eq!(
+        fs::read_to_string(output.join("saltybox.rb")).unwrap(),
+        "existing saltybox formula"
+    );
+    let formula = fs::read_to_string(output.join("juggler.rb")).unwrap();
+    assert!(formula.starts_with("class Juggler < Formula\n"));
+    assert!(formula.contains("https://github.com/scode/juggler/releases/download/v0.2.6/juggler-x86_64-apple-darwin.tar.xz"));
+    assert!(formula.contains("license \"MIT\""));
+    assert!(formula.contains("unsupported metadata.format_version=2 (expected 1)"));
+    assert!(formula.contains("Missing Google OAuth client id"));
+    assert!(formula.contains("--google-oauth-client-id ' ' --google-oauth-client-secret ' '"));
+    assert!(formula.contains("assert_equal original, store.read"));
+    assert!(formula.contains("assert_equal [\"TODOs.toml\"]"));
+    assert!(!formula.contains("treeward"));
+
+    // Regenerate all selections, then check their output without rewriting it.
+    run_from(
+        regenerate_cli(&config_path, &output, false),
+        directory.path(),
+        &fixtures,
+        &RealFileOps,
+    )
+    .unwrap();
+    run_from(
+        regenerate_cli(&config_path, &output, true),
+        directory.path(),
+        &fixtures,
+        &RealFileOps,
+    )
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(output.join("juggler.rb")).unwrap(),
+        formula
+    );
+    assert_eq!(
+        fs::read_to_string(output.join("leiter.rb")).unwrap(),
+        "push-managed formula"
+    );
+}
+
+#[test]
+/// Missing or foreign juggler assets must fail the whole update before any output
+/// changes; sharing the archive validator must not accept another tool's binary.
+fn juggler_incomplete_or_foreign_release_preserves_outputs() {
+    for foreign in [false, true] {
+        let directory = tempdir().unwrap();
+        let config_path = directory.path().join("pull.toml");
+        let output = directory.path().join("Formula");
+        write_config(&config_path, &config(None));
+        fs::create_dir(&output).unwrap();
+        fs::write(output.join("juggler.rb"), "existing upstream formula").unwrap();
+        let original = fs::read(&config_path).unwrap();
+        let mut fixtures = Fixtures::for_tools(&[(&JUGGLER, "v0.2.6")]);
+        let url = release_url(&JUGGLER, "v0.2.6", TARGETS[2]);
+        if foreign {
+            fixtures
+                .responses
+                .insert(url, archive_named("treeward", TARGETS[2], |_| {}));
+        } else {
+            fixtures.responses.remove(&url);
+        }
+        let error = run_from(
+            update_cli_for("juggler", &config_path, &output, "v0.2.6", false),
+            directory.path(),
+            &fixtures,
+            &RealFileOps,
+        )
+        .unwrap_err();
+        assert!(format!("{error:#}").contains(TARGETS[2]));
+        assert_eq!(fs::read(&config_path).unwrap(), original);
+        assert_eq!(
+            fs::read_to_string(output.join("juggler.rb")).unwrap(),
+            "existing upstream formula"
+        );
+    }
+}
+
+#[test]
 /// The archive root and binary are named after the tool, so one tool's release must not
 /// validate as another's even though the file set is otherwise identical.
 fn archive_root_must_name_the_selected_tool() {
     let target = TARGETS[3];
-    let treeward = archive_named("treeward", target, |_| {});
-    let saltybox = archive_named("saltybox", target, |_| {});
-    assert!(validate_archive(&TREEWARD, &treeward, target).is_ok());
-    assert!(validate_archive(&SALTYBOX, &saltybox, target).is_ok());
-    assert!(validate_archive(&SALTYBOX, &treeward, target).is_err());
-    assert!(validate_archive(&TREEWARD, &saltybox, target).is_err());
+    for source in TOOLS {
+        let archive = archive_named(source.name, target, |_| {});
+        for selected in TOOLS {
+            assert_eq!(
+                validate_archive(selected, &archive, target).is_ok(),
+                source.name == selected.name,
+                "{} archive selected as {}",
+                source.name,
+                selected.name
+            );
+        }
+    }
 }
 
 #[test]
 /// Regeneration resolves each configured tool to its own contract, downloading every
 /// archive of every tool and rendering each formula from its own spec.
-fn regenerate_handles_both_tools() {
+fn regenerate_handles_all_tools() {
     let directory = tempdir().unwrap();
     let config_path = directory.path().join("pull.toml");
     let output = directory.path().join("Formula");
-    let fixtures = Fixtures::for_tools(&[(&SALTYBOX, "v5.0.1"), (&TREEWARD, "v1.2.3")]);
+    let fixtures = Fixtures::for_tools(&[
+        (&JUGGLER, "v0.2.6"),
+        (&SALTYBOX, "v5.0.1"),
+        (&TREEWARD, "v1.2.3"),
+    ]);
     write_config(
         &config_path,
         &config_of([
+            ("juggler", selected_for(&JUGGLER, "v0.2.6", &fixtures)),
             ("saltybox", selected_for(&SALTYBOX, "v5.0.1", &fixtures)),
             ("treeward", selected_for(&TREEWARD, "v1.2.3", &fixtures)),
         ]),
@@ -1193,7 +1322,12 @@ fn regenerate_handles_both_tools() {
     )
     .unwrap();
 
-    assert_eq!(fixtures.calls.get(), 8);
+    assert_eq!(fixtures.calls.get(), 12);
+    assert!(
+        fs::read_to_string(output.join("juggler.rb"))
+            .unwrap()
+            .starts_with("class Juggler < Formula\n")
+    );
     assert!(
         fs::read_to_string(output.join("saltybox.rb"))
             .unwrap()
@@ -1217,22 +1351,22 @@ fn unregistered_tool_is_rejected_before_fetch() {
     let fixtures = Fixtures::for_tag("v1.2.3");
 
     let error = run_from(
-        update_cli_for("juggler", &config_path, &output, "v1.2.3", false),
+        update_cli_for("unknown", &config_path, &output, "v1.2.3", false),
         directory.path(),
         &fixtures,
         &RealFileOps,
     )
     .unwrap_err();
-    assert!(error.to_string().contains("unsupported tool: juggler"));
+    assert!(error.to_string().contains("unsupported tool: unknown"));
     assert_eq!(fixtures.calls.get(), 0);
 
     let configured =
-        "schema_version = 1\n\n[tools.juggler]\ntag = \"v1.2.3\"\n\n[tools.juggler.sha256]\n";
+        "schema_version = 1\n\n[tools.unknown]\ntag = \"v1.2.3\"\n\n[tools.unknown.sha256]\n";
     let parsed: Config = toml::from_str(configured).unwrap();
     // The configuration path wraps the cause in a "configured tool" context, so the
     // alternate formatting is needed to see the root diagnostic.
     let error = validate_config(&parsed).unwrap_err();
-    assert!(format!("{error:#}").contains("unsupported tool: juggler"));
+    assert!(format!("{error:#}").contains("unsupported tool: unknown"));
 }
 
 // Treeward-specific spellings used throughout the older tests. They live here

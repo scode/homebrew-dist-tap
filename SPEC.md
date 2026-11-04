@@ -17,10 +17,10 @@ The three global options may appear before or after the subcommand. `--config` d
 invocation directory. The default output directory is `Formula` beside the resolved configuration path. An explicit
 `--output-dir` is relative to the invocation directory. `--verbose` adds download details to diagnostics.
 
-`update` supports `treeward` and `saltybox` and requires an explicit safe `v`-prefixed SemVer tag. It accepts prerelease
-and build syntax, including `v1.2.3-rc.1+build.4`, but rejects slashes, whitespace, quotes, and other characters outside
-ASCII letters, digits, `.`, `-`, and `+`. Historical tags are allowed for reproduction. The agent running a live update
-must review version direction because the tool does not prevent downgrades.
+`update` supports `treeward`, `saltybox`, and `juggler` and requires an explicit safe `v`-prefixed SemVer tag. It
+accepts prerelease and build syntax, including `v1.2.3-rc.1+build.4`, but rejects slashes, whitespace, quotes, and other
+characters outside ASCII letters, digits, `.`, `-`, and `+`. Historical tags are allowed for reproduction. The agent
+running a live update must review version direction because the tool does not prevent downgrades.
 
 `regenerate` uses only tags and hashes already in the configuration. `--check` compares the validated generated formula
 with disk and returns a runtime failure when it is missing or different. It never writes.
@@ -63,9 +63,8 @@ hashes. A partial release never changes an output.
 
 ## Archive contract
 
-Both registered tools publish the same dist archive layout, so one contract covers them with the tool's name
-substituted. For tool `<tool>` (published from `scode/<tool>`), tag `<tag>`, and Rust target `<target>`, the only
-permitted URL is:
+All registered tools publish the same dist archive layout, so one contract covers them with the tool's name substituted.
+For tool `<tool>` (published from `scode/<tool>`), tag `<tag>`, and Rust target `<target>`, the only permitted URL is:
 
 ```text
 https://github.com/scode/<tool>/releases/download/<tag>/<tool>-<target>.tar.xz
@@ -106,6 +105,11 @@ binary, `README.md`, `CHANGELOG.md`, and `LICENSE`. The treeward formula tests a
 observed `Verification failed` result after content changes. The saltybox formula encrypts a file with a passphrase
 supplied through `--passphrase-stdin`, decrypts it and compares the plaintext, then requires a decrypt with a wrong
 passphrase to exit 1 with `failed to decrypt` and produce no output file.
+
+The juggler formula tests its TODO store parser and sync credential precondition without a terminal or Google account.
+It rejects store format version 2, then accepts format version 1 far enough to report missing OAuth credentials, with
+the store unchanged and no archive created. Explicit blank credential flags override inherited credentials and stop
+before keychain or network access. This tests local validation, not an authenticated sync or the interactive TUI.
 
 Before network access, the tool validates all destinations it may use. Existing output directories must be directories,
 and existing formula destinations must be regular UTF-8 files. Every existing destination path component must be
