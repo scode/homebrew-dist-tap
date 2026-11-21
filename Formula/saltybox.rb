@@ -1,30 +1,30 @@
 class Saltybox < Formula
   desc "Passphrase-based file encryption tool"
   homepage "https://github.com/scode/saltybox"
-  version "6.0.0"
+  version "7.0.0"
   license any_of: ["Apache-2.0", "MIT"]
 
   on_macos do
     on_arm do
-      url "https://github.com/scode/saltybox/releases/download/v6.0.0/saltybox-aarch64-apple-darwin.tar.xz"
-      sha256 "6bd91360989911b8d09a766d90a2dd17cdec6ae21ee9dda9cb5f8bd5b693af96"
+      url "https://github.com/scode/saltybox/releases/download/v7.0.0/saltybox-aarch64-apple-darwin.tar.xz"
+      sha256 "c5a81c4240fedc8d7ae1d2a4affb94a80e4f1c9bf4a7366c344429aeee91c49a"
     end
 
     on_intel do
-      url "https://github.com/scode/saltybox/releases/download/v6.0.0/saltybox-x86_64-apple-darwin.tar.xz"
-      sha256 "285be88b9da233ed8a6a3fee4a75bb57df0e5afefd98a9712779b6a431389d8d"
+      url "https://github.com/scode/saltybox/releases/download/v7.0.0/saltybox-x86_64-apple-darwin.tar.xz"
+      sha256 "25e229024282ddfc5f6c95870da5cb6c4016ee896b9d6f3129b989f2461fd95b"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/scode/saltybox/releases/download/v6.0.0/saltybox-aarch64-unknown-linux-gnu.tar.xz"
-      sha256 "aed6e7dcc3a27ee79a937852e6edb3bfa8e9a88a7c98812bf960a75a3ec36a03"
+      url "https://github.com/scode/saltybox/releases/download/v7.0.0/saltybox-aarch64-unknown-linux-gnu.tar.xz"
+      sha256 "242c009148cd6ea579d7fd36e43f9583b50375618248f800329003defb16895f"
     end
 
     on_intel do
-      url "https://github.com/scode/saltybox/releases/download/v6.0.0/saltybox-x86_64-unknown-linux-gnu.tar.xz"
-      sha256 "41322fbc7fa89e283e0ff0d53b886489762182a86a352e8bf968a827106c48c6"
+      url "https://github.com/scode/saltybox/releases/download/v7.0.0/saltybox-x86_64-unknown-linux-gnu.tar.xz"
+      sha256 "8ebc8acdfd7e485fe856e53b933fe54a63b73185408a3f77229387f05d3fd986"
     end
   end
 
