@@ -10,13 +10,13 @@ x86_64-apple-darwin = "6b0495d0f4d2af5673cf478cf7d1127093cbd088cb299064ecbe1fee3
 x86_64-unknown-linux-gnu = "97fde94fa6253059741a42a79816f757446913ea678090d9fd8bb0e218068c8c"
 
 [tools.saltybox]
-tag = "v6.0.0"
+tag = "v7.0.0"
 
 [tools.saltybox.sha256]
-aarch64-apple-darwin = "6bd91360989911b8d09a766d90a2dd17cdec6ae21ee9dda9cb5f8bd5b693af96"
-aarch64-unknown-linux-gnu = "aed6e7dcc3a27ee79a937852e6edb3bfa8e9a88a7c98812bf960a75a3ec36a03"
-x86_64-apple-darwin = "285be88b9da233ed8a6a3fee4a75bb57df0e5afefd98a9712779b6a431389d8d"
-x86_64-unknown-linux-gnu = "41322fbc7fa89e283e0ff0d53b886489762182a86a352e8bf968a827106c48c6"
+aarch64-apple-darwin = "c5a81c4240fedc8d7ae1d2a4affb94a80e4f1c9bf4a7366c344429aeee91c49a"
+aarch64-unknown-linux-gnu = "242c009148cd6ea579d7fd36e43f9583b50375618248f800329003defb16895f"
+x86_64-apple-darwin = "25e229024282ddfc5f6c95870da5cb6c4016ee896b9d6f3129b989f2461fd95b"
+x86_64-unknown-linux-gnu = "8ebc8acdfd7e485fe856e53b933fe54a63b73185408a3f77229387f05d3fd986"
 
 [tools.treeward]
 tag = "v0.3.3"
